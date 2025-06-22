@@ -353,39 +353,42 @@ export class DrawingEngine {
     if (selectedObjects.length > 0) {
       console.log('🎨 Drawing selection for:', selectedObjects);
 
-      // 强制 id 类型一致
-      const selectedIdSet = new Set(selectedObjects.map(id => String(id).trim()));
       const selectedObjs = [
-        ...paths.filter(p => selectedIdSet.has(String(p.id).trim())),
-        ...shapes.filter(s => selectedIdSet.has(String(s.id).trim())),
-        ...texts.filter(t => selectedIdSet.has(String(t.id).trim()))
+        ...paths.filter(p => selectedObjects.includes(p.id)),
+        ...shapes.filter(s => selectedObjects.includes(s.id)),
+        ...texts.filter(t => selectedObjects.includes(t.id))
       ];
 
       console.log('🎨 Found selected objects:', selectedObjs.map(obj => obj.id));
 
-      // 1. 先画所有被选中的对象高亮
-      selectedObjs.forEach(obj => {
-        const bounds = getBounds(obj);
-        this.drawIndividualHighlight(bounds, obj.id);
-      });
+      if (selectedObjs.length > 0) {
+        // 先画 selection box
+        if (selectedObjs.length > 1) {
+          const bounds = selectedObjs.map(obj => getBounds(obj));
 
-      // 2. 再画 selection box
-      if (selectedObjs.length > 1) {
-        const boundsArr = selectedObjs.map(obj => getBounds(obj));
-        const minX = Math.min(...boundsArr.map(b => b.x));
-        const minY = Math.min(...boundsArr.map(b => b.y));
-        const maxX = Math.max(...boundsArr.map(b => b.x + b.width));
-        const maxY = Math.max(...boundsArr.map(b => b.y + b.height));
-        const selectionBounds = {
-          x: minX,
-          y: minY,
-          width: maxX - minX,
-          height: maxY - minY
-        };
-        this.drawSelectionBox(selectionBounds);
-      } else if (selectedObjs.length === 1) {
-        const bounds = getBounds(selectedObjs[0]);
-        this.drawSelectionBox(bounds);
+          const minX = Math.min(...bounds.map(b => b.x));
+          const minY = Math.min(...bounds.map(b => b.y));
+          const maxX = Math.max(...bounds.map(b => b.x + b.width));
+          const maxY = Math.max(...bounds.map(b => b.y + b.height));
+
+          const selectionBounds = {
+            x: minX,
+            y: minY,
+            width: maxX - minX,
+            height: maxY - minY
+          };
+
+          this.drawSelectionBox(selectionBounds);
+        } else {
+          // 单选时画 handles
+          const bounds = getBounds(selectedObjs[0]);
+          this.drawSelectionBox(bounds);
+        }
+        // 再画每个对象的高亮
+        selectedObjs.forEach(obj => {
+          const bounds = getBounds(obj);
+          this.drawIndividualHighlight(bounds, obj.id);
+        });
       }
     }
 

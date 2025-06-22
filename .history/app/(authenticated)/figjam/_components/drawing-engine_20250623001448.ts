@@ -45,11 +45,11 @@ export class DrawingEngine {
 
     this.ctx.beginPath();
     this.ctx.moveTo(path.points[0].x, path.points[0].y);
-
+    
     for (let i = 1; i < path.points.length; i++) {
       this.ctx.lineTo(path.points[i].x, path.points[i].y);
     }
-
+    
     this.ctx.stroke();
     this.ctx.restore();
   }
@@ -81,7 +81,7 @@ export class DrawingEngine {
     }
 
     this.ctx.beginPath();
-
+    
     if (shape.type === 'rectangle') {
       this.ctx.rect(x, y, width, height);
     } else if (shape.type === 'circle') {
@@ -115,7 +115,7 @@ export class DrawingEngine {
 
     const textMetrics = this.ctx.measureText(text.content);
     let xPos = text.position.x;
-
+    
     if (text.textAlign === 'center') {
       xPos = text.position.x - textMetrics.width / 2;
     } else if (text.textAlign === 'right') {
@@ -143,7 +143,7 @@ export class DrawingEngine {
     this.ctx.setLineDash([5, 5]);
 
     this.ctx.beginPath();
-
+    
     if (shape.type === 'rectangle') {
       this.ctx.rect(x, y, width, height);
     } else if (shape.type === 'circle') {
@@ -172,11 +172,11 @@ export class DrawingEngine {
 
     this.ctx.beginPath();
     this.ctx.moveTo(points[0].x, points[0].y);
-
+    
     for (let i = 1; i < points.length; i++) {
       this.ctx.lineTo(points[i].x, points[i].y);
     }
-
+    
     this.ctx.stroke();
     this.ctx.restore();
   }
@@ -196,16 +196,16 @@ export class DrawingEngine {
     this.ctx.strokeStyle = '#10b981'; // 绿色高亮，更容易看到多个对象
     this.ctx.lineWidth = 2;
     this.ctx.globalAlpha = 0.9;
-
+    
     // 绘制实线边框，更清楚
     this.ctx.setLineDash([]);
     this.ctx.strokeRect(x, y, width, height);
-
+    
     // 添加半透明背景色
     this.ctx.fillStyle = '#10b981';
     this.ctx.globalAlpha = 0.15;
     this.ctx.fillRect(x, y, width, height);
-
+    
     console.log('✨ Drew individual highlight for:', objectId, 'at bounds:', bounds);
     this.ctx.restore();
   }
@@ -224,22 +224,22 @@ export class DrawingEngine {
 
     // Draw selection handles with improved design
     const handles = getSelectionHandles(bounds);
-
+    
     Object.entries(handles).forEach(([handleName, handlePos]) => {
       const handleSize = handleName === 'rotation' ? 7 : 9;
-
+      
       // Handle shadow effect
       this.ctx.save();
       this.ctx.shadowColor = 'rgba(0, 0, 0, 0.2)';
       this.ctx.shadowBlur = 2;
       this.ctx.shadowOffsetX = 1;
       this.ctx.shadowOffsetY = 1;
-
+      
       // Handle background (white with border)
       this.ctx.fillStyle = '#ffffff';
       this.ctx.strokeStyle = '#3b82f6';
       this.ctx.lineWidth = 2;
-
+      
       this.ctx.beginPath();
       this.ctx.arc(handlePos.x, handlePos.y, handleSize / 2, 0, 2 * Math.PI);
       this.ctx.fill();
@@ -273,7 +273,7 @@ export class DrawingEngine {
     // Draw text background
     this.ctx.font = `${fontStyle} ${fontWeight} ${fontSize}px ${fontFamily}`;
     const textMetrics = this.ctx.measureText(content || '|');
-
+    
     this.ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
     this.ctx.fillRect(
       position.x - 2,
@@ -352,40 +352,44 @@ export class DrawingEngine {
     // Draw selection highlighting - both individual and combined
     if (selectedObjects.length > 0) {
       console.log('🎨 Drawing selection for:', selectedObjects);
-
-      // 强制 id 类型一致
-      const selectedIdSet = new Set(selectedObjects.map(id => String(id).trim()));
+      
       const selectedObjs = [
-        ...paths.filter(p => selectedIdSet.has(String(p.id).trim())),
-        ...shapes.filter(s => selectedIdSet.has(String(s.id).trim())),
-        ...texts.filter(t => selectedIdSet.has(String(t.id).trim()))
+        ...paths.filter(p => selectedObjects.includes(p.id)),
+        ...shapes.filter(s => selectedObjects.includes(s.id)),
+        ...texts.filter(t => selectedObjects.includes(t.id))
       ];
-
+      
       console.log('🎨 Found selected objects:', selectedObjs.map(obj => obj.id));
 
-      // 1. 先画所有被选中的对象高亮
-      selectedObjs.forEach(obj => {
-        const bounds = getBounds(obj);
-        this.drawIndividualHighlight(bounds, obj.id);
-      });
+      if (selectedObjs.length > 0) {
+        // Draw individual object highlights first
+        selectedObjs.forEach(obj => {
+          const bounds = getBounds(obj);
+          this.drawIndividualHighlight(bounds, obj.id);
+        });
+        
+        // Then draw combined selection box if multiple objects
+        if (selectedObjs.length > 1) {
+          const bounds = selectedObjs.map(obj => getBounds(obj));
+          
+          const minX = Math.min(...bounds.map(b => b.x));
+          const minY = Math.min(...bounds.map(b => b.y));
+          const maxX = Math.max(...bounds.map(b => b.x + b.width));
+          const maxY = Math.max(...bounds.map(b => b.y + b.height));
 
-      // 2. 再画 selection box
-      if (selectedObjs.length > 1) {
-        const boundsArr = selectedObjs.map(obj => getBounds(obj));
-        const minX = Math.min(...boundsArr.map(b => b.x));
-        const minY = Math.min(...boundsArr.map(b => b.y));
-        const maxX = Math.max(...boundsArr.map(b => b.x + b.width));
-        const maxY = Math.max(...boundsArr.map(b => b.y + b.height));
-        const selectionBounds = {
-          x: minX,
-          y: minY,
-          width: maxX - minX,
-          height: maxY - minY
-        };
-        this.drawSelectionBox(selectionBounds);
-      } else if (selectedObjs.length === 1) {
-        const bounds = getBounds(selectedObjs[0]);
-        this.drawSelectionBox(bounds);
+          const selectionBounds = {
+            x: minX,
+            y: minY,
+            width: maxX - minX,
+            height: maxY - minY
+          };
+
+          this.drawSelectionBox(selectionBounds);
+        } else {
+          // Single object - draw handles around it
+          const bounds = getBounds(selectedObjs[0]);
+          this.drawSelectionBox(bounds);
+        }
       }
     }
 

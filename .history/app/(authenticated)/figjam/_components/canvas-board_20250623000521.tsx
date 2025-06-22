@@ -89,9 +89,6 @@ export function CanvasBoard({ boardId }: CanvasBoardProps) {
   const [selectionSystem] = useState(new SelectionSystem((newSelection: string[]) => {
     console.log('🔔 SelectionSystem callback triggered with:', newSelection);
     setSelectedObjects(newSelection);
-    setTimeout(() => {
-      redraw();
-    }, 0);
   }));
 
   const colors = [

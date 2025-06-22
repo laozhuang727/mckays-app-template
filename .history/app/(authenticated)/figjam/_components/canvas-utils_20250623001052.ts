@@ -16,14 +16,14 @@ export const getBounds = (obj: DrawingPath | Shape | TextElement): { x: number; 
   if ('points' in obj) {
     // DrawingPath
     if (obj.points.length === 0) return { x: 0, y: 0, width: 0, height: 0 };
-
+    
     const xs = obj.points.map(p => p.x);
     const ys = obj.points.map(p => p.y);
     const minX = Math.min(...xs);
     const maxX = Math.max(...xs);
     const minY = Math.min(...ys);
     const maxY = Math.max(...ys);
-
+    
     return {
       x: minX - obj.width / 2,
       y: minY - obj.width / 2,
@@ -36,32 +36,25 @@ export const getBounds = (obj: DrawingPath | Shape | TextElement): { x: number; 
     const maxX = Math.max(obj.startPoint.x, obj.endPoint.x);
     const minY = Math.min(obj.startPoint.y, obj.endPoint.y);
     const maxY = Math.max(obj.startPoint.y, obj.endPoint.y);
-
+    
     const actualWidth = maxX - minX;
     const actualHeight = maxY - minY;
-
+    
     let width = actualWidth;
     let height = actualHeight;
     let x = minX;
     let y = minY;
-
-    // 对于圆形，确保bounds与实际绘制区域一致
+    
+    // 对于圆形，确保bounds是正方形，与绘制逻辑一致
     if (obj.type === 'circle') {
-      const x0 = obj.startPoint.x;
-      const y0 = obj.startPoint.y;
-      const x1 = obj.endPoint.x;
-      const y1 = obj.endPoint.y;
-      const w = Math.abs(x1 - x0);
-      const h = Math.abs(y1 - y0);
-      const diameter = Math.min(w, h);
-      const centerX = Math.min(x0, x1) + w / 2;
-      const centerY = Math.min(y0, y1) + h / 2;
-      x = centerX - diameter / 2;
-      y = centerY - diameter / 2;
+      const diameter = Math.min(actualWidth, actualHeight);
       width = diameter;
       height = diameter;
+      // 调整位置使圆形居中在原始区域内
+      x = minX + (actualWidth - diameter) / 2;
+      y = minY + (actualHeight - diameter) / 2;
     }
-
+    
     console.log('📏 Shape bounds calculation:', {
       shapeId: obj.id,
       shapeType: obj.type,
@@ -70,7 +63,7 @@ export const getBounds = (obj: DrawingPath | Shape | TextElement): { x: number; 
       actualSize: { width: actualWidth, height: actualHeight },
       finalBounds: { x, y, width, height }
     });
-
+    
     return {
       x: x,
       y: y,
@@ -83,7 +76,7 @@ export const getBounds = (obj: DrawingPath | Shape | TextElement): { x: number; 
     const ctx = canvas.getContext('2d')!;
     ctx.font = `${obj.fontStyle} ${obj.fontWeight} ${obj.fontSize}px ${obj.fontFamily}`;
     const metrics = ctx.measureText(obj.content);
-
+    
     return {
       x: obj.position.x,
       y: obj.position.y - obj.fontSize,
@@ -102,11 +95,11 @@ export const isPointInPath = (point: Point, path: DrawingPath): boolean => {
     width: bounds.width + 10,
     height: bounds.height + 10
   };
-
+  
   return point.x >= expandedBounds.x &&
-    point.x <= expandedBounds.x + expandedBounds.width &&
-    point.y >= expandedBounds.y &&
-    point.y <= expandedBounds.y + expandedBounds.height;
+         point.x <= expandedBounds.x + expandedBounds.width &&
+         point.y >= expandedBounds.y &&
+         point.y <= expandedBounds.y + expandedBounds.height;
 };
 
 // 专门用于碰撞检测的bounds计算，包含最小尺寸
@@ -115,14 +108,14 @@ const getHitTestBounds = (shape: Shape): { x: number; y: number; width: number; 
   const maxX = Math.max(shape.startPoint.x, shape.endPoint.x);
   const minY = Math.min(shape.startPoint.y, shape.endPoint.y);
   const maxY = Math.max(shape.startPoint.y, shape.endPoint.y);
-
+  
   const actualWidth = maxX - minX;
   const actualHeight = maxY - minY;
-
+  
   // 为碰撞检测确保最小尺寸
   const width = Math.max(actualWidth, 10);
   const height = Math.max(actualHeight, 10);
-
+  
   return {
     x: minX,
     y: minY,
@@ -132,24 +125,54 @@ const getHitTestBounds = (shape: Shape): { x: number; y: number; width: number; 
 };
 
 export const isPointInShape = (point: Point, shape: Shape): boolean => {
+  const bounds = getBounds(shape);
   const hitBounds = getHitTestBounds(shape);
-
-  // 统一：只要点在外包围盒内就算命中
-  if (shape.type === 'rectangle' || shape.type === 'circle') {
-    return point.x >= hitBounds.x &&
-      point.x <= hitBounds.x + hitBounds.width &&
-      point.y >= hitBounds.y &&
-      point.y <= hitBounds.y + hitBounds.height;
+  
+  console.log('🔍 isPointInShape Debug:', {
+    shapeId: shape.id,
+    shapeType: shape.type,
+    startPoint: shape.startPoint,
+    endPoint: shape.endPoint,
+    visualBounds: bounds,
+    hitBounds: hitBounds,
+    clickPoint: point,
+    boundsCheck: {
+      xInRange: point.x >= hitBounds.x && point.x <= hitBounds.x + hitBounds.width,
+      yInRange: point.y >= hitBounds.y && point.y <= hitBounds.y + hitBounds.height
+    }
+  });
+  
+  if (shape.type === 'rectangle') {
+    const result = point.x >= hitBounds.x &&
+           point.x <= hitBounds.x + hitBounds.width &&
+           point.y >= hitBounds.y &&
+           point.y <= hitBounds.y + hitBounds.height;
+    console.log('🟨 Rectangle hit test result:', result);
+    return result;
+  } else if (shape.type === 'circle') {
+    // 对于圆形，使用实际的视觉bounds来计算圆心和半径
+    const centerX = bounds.x + bounds.width / 2;
+    const centerY = bounds.y + bounds.height / 2;
+    const radius = Math.min(bounds.width, bounds.height) / 2;
+    const distance = Math.sqrt(
+      Math.pow(point.x - centerX, 2) + Math.pow(point.y - centerY, 2)
+    );
+    // 但允许一些容错范围来改善用户体验
+    const tolerance = Math.max(5, Math.min(hitBounds.width, hitBounds.height) / 4);
+    const result = distance <= radius + tolerance;
+    console.log('🟦 Circle hit test result:', result, { centerX, centerY, radius, distance, tolerance, bounds });
+    return result;
   }
+  
   return false;
 };
 
 export const isPointInText = (point: Point, text: TextElement): boolean => {
   const bounds = getBounds(text);
   return point.x >= bounds.x &&
-    point.x <= bounds.x + bounds.width &&
-    point.y >= bounds.y &&
-    point.y <= bounds.y + bounds.height;
+         point.x <= bounds.x + bounds.width &&
+         point.y >= bounds.y &&
+         point.y <= bounds.y + bounds.height;
 };
 
 // Selection handle utilities
@@ -171,12 +194,12 @@ export const getSelectionHandles = (bounds: { x: number; y: number; width: numbe
 export const getHandleAtPoint = (point: Point, bounds: { x: number; y: number; width: number; height: number }): string | null => {
   const handles = getSelectionHandles(bounds);
   const handleSize = 8;
-
+  
   for (const [handleName, handlePos] of Object.entries(handles)) {
     if (point.x >= handlePos.x - handleSize / 2 &&
-      point.x <= handlePos.x + handleSize / 2 &&
-      point.y >= handlePos.y - handleSize / 2 &&
-      point.y <= handlePos.y + handleSize / 2) {
+        point.x <= handlePos.x + handleSize / 2 &&
+        point.y >= handlePos.y - handleSize / 2 &&
+        point.y <= handlePos.y + handleSize / 2) {
       return handleName;
     }
   }
@@ -211,15 +234,15 @@ export const getMinZIndex = (objects: (DrawingPath | Shape | TextElement)[]): nu
 export const setupCanvas = (canvas: HTMLCanvasElement): CanvasRenderingContext2D => {
   const ctx = canvas.getContext('2d')!;
   const dpr = window.devicePixelRatio || 1;
-
+  
   const rect = canvas.getBoundingClientRect();
   canvas.width = rect.width * dpr;
   canvas.height = rect.height * dpr;
-
+  
   ctx.scale(dpr, dpr);
   canvas.style.width = rect.width + 'px';
   canvas.style.height = rect.height + 'px';
-
+  
   return ctx;
 };
 
@@ -227,17 +250,17 @@ export const setupCanvas = (canvas: HTMLCanvasElement): CanvasRenderingContext2D
 export const drawGrid = (ctx: CanvasRenderingContext2D, viewport: Viewport, canvasWidth: number, canvasHeight: number) => {
   const gridSize = 20;
   const scaledGridSize = gridSize * viewport.scale;
-
+  
   if (scaledGridSize < 5) return; // Don't draw grid if too small
-
+  
   ctx.save();
   ctx.strokeStyle = '#e0e0e0';
   ctx.lineWidth = 0.5;
   ctx.globalAlpha = 0.5;
-
+  
   const startX = -viewport.offsetX % scaledGridSize;
   const startY = -viewport.offsetY % scaledGridSize;
-
+  
   // Vertical lines
   for (let x = startX; x < canvasWidth; x += scaledGridSize) {
     ctx.beginPath();
@@ -245,7 +268,7 @@ export const drawGrid = (ctx: CanvasRenderingContext2D, viewport: Viewport, canv
     ctx.lineTo(x, canvasHeight);
     ctx.stroke();
   }
-
+  
   // Horizontal lines
   for (let y = startY; y < canvasHeight; y += scaledGridSize) {
     ctx.beginPath();
@@ -253,6 +276,6 @@ export const drawGrid = (ctx: CanvasRenderingContext2D, viewport: Viewport, canv
     ctx.lineTo(canvasWidth, y);
     ctx.stroke();
   }
-
+  
   ctx.restore();
 };

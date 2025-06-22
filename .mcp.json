@@ -11,11 +11,7 @@
       "command": "npx",
       "args": [
         "-y",
-        "@smithery/cli@latest",
-        "run",
-        "@smithery-ai/server-sequential-thinking",
-        "--config",
-        "{}"
+        "@modelcontextprotocol/server-sequential-thinking"
       ]
     }
   }

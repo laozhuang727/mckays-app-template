@@ -53,7 +53,7 @@ const features = [
 export function FeaturesSection() {
   return (
     <SectionWrapper className="relative" id="features">
-      <div className="bg-[radial-gradient(45%_45%_at_50%_50%,oklch(0.522_0.223_262.881_/_0.2),transparent)] absolute inset-0 -z-10 opacity-20 dark:opacity-40" />
+      <div className="bg-[radial-gradient(45%_45%_at_50%_50%,theme(colors.brand-primary/20),transparent)] absolute inset-0 -z-10 opacity-20 dark:opacity-40" />
 
       <div className="mx-auto max-w-7xl">
         <div className="mx-auto max-w-2xl text-center">

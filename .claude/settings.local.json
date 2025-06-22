@@ -24,7 +24,11 @@
       "mcp__browser-tools-mcp__takeScreenshot",
       "mcp__browser-tools-mcp__getConsoleLogs",
       "mcp__browser-tools-mcp__wipeLogs",
-      "mcp__browser-tools-mcp__getNetworkErrors"
+      "mcp__browser-tools-mcp__getNetworkErrors",
+      "Bash(find:*)",
+      "Bash(rm:*)",
+      "Bash(pnpm:*)",
+      "Bash(sudo pnpm:*)"
     ],
     "deny": []
   },

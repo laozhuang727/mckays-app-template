@@ -21,19 +21,31 @@ export class SelectionSystem {
   }
 
   setSelectedObjects(objectIds: string[]) {
+    console.log('🔄 setSelectedObjects called with:', objectIds);
+    console.log('🔄 Previous selection:', this.selectedObjects);
     this.selectedObjects = [...objectIds];
+    console.log('🔄 New selection after update:', this.selectedObjects);
     this.onSelectionChange(this.selectedObjects);
   }
 
   addToSelection(objectId: string) {
+    console.log('➕ addToSelection called with:', objectId);
+    console.log('➕ Current selection before add:', this.selectedObjects);
     if (!this.selectedObjects.includes(objectId)) {
       this.selectedObjects.push(objectId);
+      console.log('➕ Selection after push:', this.selectedObjects);
       this.onSelectionChange(this.selectedObjects);
+      console.log('➕ After callback, selection is:', this.selectedObjects);
+    } else {
+      console.log('➕ Object already selected, skipping');
     }
   }
 
   removeFromSelection(objectId: string) {
+    console.log('➖ removeFromSelection called with:', objectId);
+    console.log('➖ Current selection before remove:', this.selectedObjects);
     this.selectedObjects = this.selectedObjects.filter(id => id !== objectId);
+    console.log('➖ Selection after filter:', this.selectedObjects);
     this.onSelectionChange(this.selectedObjects);
   }
 
@@ -61,54 +73,40 @@ export class SelectionSystem {
     shapes: Shape[],
     texts: TextElement[]
   ): string | null {
-    // Sort all objects by zIndex (highest first for selection priority)
     const allObjects = [
       ...paths.map(p => ({ ...p, objectType: 'path' as const })),
       ...shapes.map(s => ({ ...s, objectType: 'shape' as const })),
       ...texts.map(t => ({ ...t, objectType: 'text' as const }))
     ].sort((a, b) => (b.zIndex || 0) - (a.zIndex || 0));
 
-    console.log('findObjectAtPoint:', { 
-      point, 
+    console.log('🎯 findObjectAtPoint called with:', {
+      point,
       totalObjects: allObjects.length,
-      paths: paths.length,
-      shapes: shapes.length,
-      texts: texts.length,
-      allObjectsDetails: allObjects.map(obj => ({ id: obj.id, type: obj.objectType, hasStartPoint: 'startPoint' in obj }))
+      pathCount: paths.length,
+      shapeCount: shapes.length,
+      textCount: texts.length,
+      allObjectIds: allObjects.map(obj => obj.id)
     });
 
-    // Find the top-most object at the point
     for (const obj of allObjects) {
-      console.log('Checking object:', { 
-        id: obj.id, 
-        type: obj.objectType,
-        hasStartPoint: 'startPoint' in obj,
-        hasPoints: 'points' in obj,
-        hasPosition: 'position' in obj
-      });
-      
       let isHit = false;
       
       if (obj.objectType === 'path') {
-        console.log('Testing path hit detection for:', obj.id);
         isHit = isPointInPath(point, obj as DrawingPath);
       } else if (obj.objectType === 'shape') {
-        console.log('Testing shape hit detection for:', obj.id);
         isHit = isPointInShape(point, obj as Shape);
+        console.log('🔵 Shape hit test for', obj.id, ':', isHit);
       } else if (obj.objectType === 'text') {
-        console.log('Testing text hit detection for:', obj.id);
         isHit = isPointInText(point, obj as TextElement);
       }
-
-      console.log('Hit detection result for', obj.id, ':', isHit);
-
+      
       if (isHit) {
-        console.log('Found object at point:', obj.id, obj.objectType);
+        console.log('✅ Hit detected for object:', obj.id, 'type:', obj.objectType);
         return obj.id;
       }
     }
 
-    console.log('No object found at point');
+    console.log('❌ No objects hit at point:', point);
     return null;
   }
 
@@ -117,35 +115,37 @@ export class SelectionSystem {
     paths: DrawingPath[],
     shapes: Shape[],
     texts: TextElement[],
-    isCtrlPressed: boolean = false
+    isMultiSelectPressed: boolean = false
   ): string | null {
     const clickedObjectId = this.findObjectAtPoint(point, paths, shapes, texts);
-    console.log('SelectionSystem.handleClick:', { 
-      clickedObjectId, 
-      isCtrlPressed, 
-      currentSelection: this.selectedObjects 
+    
+    console.log('🎯 Selection Debug:', {
+      clickedObjectId,
+      isMultiSelectPressed,
+      currentSelection: this.selectedObjects,
+      isAlreadySelected: clickedObjectId ? this.isSelected(clickedObjectId) : false
     });
 
     if (clickedObjectId) {
-      if (isCtrlPressed) {
+      if (isMultiSelectPressed) {
         // Toggle selection
         if (this.isSelected(clickedObjectId)) {
-          console.log('Removing from selection:', clickedObjectId);
+          console.log('➖ Removing from selection:', clickedObjectId);
           this.removeFromSelection(clickedObjectId);
         } else {
-          console.log('Adding to selection:', clickedObjectId);
+          console.log('➕ Adding to selection:', clickedObjectId);
           this.addToSelection(clickedObjectId);
         }
       } else {
         // Single selection
-        console.log('Single selection:', clickedObjectId);
+        console.log('🎯 Single selection:', clickedObjectId);
         this.setSelectedObjects([clickedObjectId]);
       }
-      console.log('New selection:', this.selectedObjects);
+      console.log('📝 Final selection:', this.selectedObjects);
       return clickedObjectId;
-    } else if (!isCtrlPressed) {
+    } else if (!isMultiSelectPressed) {
       // Clicked on empty space, clear selection
-      console.log('Clearing selection');
+      console.log('🧹 Clearing selection');
       this.clearSelection();
     }
 

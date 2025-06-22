@@ -51,11 +51,11 @@ export const getBounds = (obj: DrawingPath | Shape | TextElement): { x: number; 
       const y0 = obj.startPoint.y;
       const x1 = obj.endPoint.x;
       const y1 = obj.endPoint.y;
-      const w = Math.abs(x1 - x0);
-      const h = Math.abs(y1 - y0);
-      const diameter = Math.min(w, h);
-      const centerX = Math.min(x0, x1) + w / 2;
-      const centerY = Math.min(y0, y1) + h / 2;
+      const width = Math.abs(x1 - x0);
+      const height = Math.abs(y1 - y0);
+      const diameter = Math.min(width, height);
+      const centerX = Math.min(x0, x1) + width / 2;
+      const centerY = Math.min(y0, y1) + height / 2;
       x = centerX - diameter / 2;
       y = centerY - diameter / 2;
       width = diameter;
@@ -132,15 +132,45 @@ const getHitTestBounds = (shape: Shape): { x: number; y: number; width: number; 
 };
 
 export const isPointInShape = (point: Point, shape: Shape): boolean => {
+  const bounds = getBounds(shape);
   const hitBounds = getHitTestBounds(shape);
 
-  // 统一：只要点在外包围盒内就算命中
-  if (shape.type === 'rectangle' || shape.type === 'circle') {
-    return point.x >= hitBounds.x &&
+  console.log('🔍 isPointInShape Debug:', {
+    shapeId: shape.id,
+    shapeType: shape.type,
+    startPoint: shape.startPoint,
+    endPoint: shape.endPoint,
+    visualBounds: bounds,
+    hitBounds: hitBounds,
+    clickPoint: point,
+    boundsCheck: {
+      xInRange: point.x >= hitBounds.x && point.x <= hitBounds.x + hitBounds.width,
+      yInRange: point.y >= hitBounds.y && point.y <= hitBounds.y + hitBounds.height
+    }
+  });
+
+  if (shape.type === 'rectangle') {
+    const result = point.x >= hitBounds.x &&
       point.x <= hitBounds.x + hitBounds.width &&
       point.y >= hitBounds.y &&
       point.y <= hitBounds.y + hitBounds.height;
+    console.log('🟨 Rectangle hit test result:', result);
+    return result;
+  } else if (shape.type === 'circle') {
+    // 对于圆形，使用实际的视觉bounds来计算圆心和半径
+    const centerX = bounds.x + bounds.width / 2;
+    const centerY = bounds.y + bounds.height / 2;
+    const radius = Math.min(bounds.width, bounds.height) / 2;
+    const distance = Math.sqrt(
+      Math.pow(point.x - centerX, 2) + Math.pow(point.y - centerY, 2)
+    );
+    // 允许一定容差，提升易用性
+    const tolerance = Math.max(5, Math.min(bounds.width, bounds.height) / 4);
+    const result = distance <= radius + tolerance;
+    console.log('🟦 Circle hit test result:', result, { centerX, centerY, radius, distance, tolerance, bounds });
+    return result;
   }
+
   return false;
 };
 
