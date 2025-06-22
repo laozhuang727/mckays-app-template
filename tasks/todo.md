@@ -73,12 +73,16 @@
 - [x] Create selection tool with click detection
 - [x] Implement bounding box calculation for objects
 - [x] Add visual selection indicators (selection handles)
-- [x] Create multi-select with Ctrl+click (rectangle selection deferred)
+- [x] Single selection with simple click (无需按键)
+- [x] Multi-select with Ctrl+click (rectangle selection deferred)
+- [x] Ctrl+click to remove from multi-selection
+- [x] Click empty space to clear selection
 - [x] Implement hit testing for overlapping objects
 - [x] Add selection state management
 
 ### 对象操作 ✅ 已完成
-- [x] Move selected objects with mouse drag
+- [x] Move single selected object with mouse drag
+- [x] Move multiple selected objects together with mouse drag
 - [x] Delete selected objects (Delete key handler)
 - [x] Resize objects with corner/edge handles (8 handles: corners + edges)
 - [x] Dynamic cursor styles for resize handles
@@ -293,8 +297,11 @@
 - **约束绘制**: Shift键约束模式，确保完美几何形状
 
 #### 选择与操作系统
-- **智能选择**: 点击选择对象，Ctrl+点击多选，自动分层检测
-- **完整操作**: 拖拽移动、8点调整句柄缩放、旋转句柄旋转
+- **单选操作**: 直接点击对象选中（无需按键），支持即时拖拽移动
+- **多选操作**: Ctrl+点击添加对象到选择，Ctrl+点击已选对象移除选择
+- **选择管理**: 点击空白区域清空选择，自动分层检测最上层对象
+- **拖拽移动**: 单选和多选对象都支持同步拖拽移动
+- **完整操作**: 8点调整句柄缩放、旋转句柄旋转、比例约束缩放
 - **高级功能**: 复制粘贴、重复、全选、删除等完整键盘快捷键支持
 
 #### 样式与外观
@@ -326,8 +333,9 @@
 ### 📊 当前状态
 - **Phase 1**: ✅ 100% 完成 - 画布基础和绘图
 - **Phase 2**: ✅ 100% 完成 - 选择和对象操作
-- **Phase 3**: ✅ 80% 完成 - 文本系统和高级功能
-- **总体进度**: 🎯 约 85% 核心功能完成
+- **Phase 3**: ✅ 90% 完成 - 文本系统和高级功能
+- **交互优化**: ✅ 100% 完成 - 选择逻辑和Shift键约束
+- **总体进度**: 🎯 约 90% 核心功能完成
 
 ### 🎯 下一步建议
 
@@ -344,16 +352,17 @@
 ### 💡 技术总结
 
 当前实现已经达到了一个功能完整的白板应用的核心要求：
-- ✅ 完整的绘图和编辑体验
-- ✅ 专业级的选择和操作系统  
-- ✅ 符合用户期望的交互模式
-- ✅ 稳定的撤销/重做机制
-- ✅ 良好的性能和响应速度
+- ✅ 完整的绘图和编辑体验（笔刷、矩形、椭圆、文本）
+- ✅ 专业级的选择和操作系统（单选、多选、拖拽、缩放、旋转）
+- ✅ 直观的交互模式（无需按键单选、Shift约束、Ctrl多选）
+- ✅ 稳定的撤销/重做机制（50步历史记录）
+- ✅ 良好的性能和响应速度（无限循环修复）
+- ✅ 完善的键盘快捷键支持（复制、粘贴、删除、全选等）
 
-**代码质量**: 使用 TypeScript 确保类型安全，React 最佳实践，清晰的组件架构
-**用户体验**: 符合现代绘图应用的交互标准，支持专业用户的高效操作
+**代码质量**: 使用 TypeScript 确保类型安全，React 最佳实践，清晰的组件架构，解决无限渲染问题
+**用户体验**: 符合现代绘图应用的交互标准，支持专业用户的高效操作，直觉式单选多选
 **可扩展性**: 模块化设计为后续协作功能和高级特性奠定了坚实基础
 
 ---
 
-*最后更新: 2025-06-22 - 完成 Phase 1-3 核心功能，准备进入 Phase 4 数据持久化阶段*
+*最后更新: 2025-06-23 - 完成交互优化（椭圆/正圆切换、单选多选逻辑修复、无限循环解决），准备进入 Phase 4 数据持久化阶段*
