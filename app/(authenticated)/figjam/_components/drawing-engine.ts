@@ -352,46 +352,41 @@ export class DrawingEngine {
     // Draw selection highlighting - both individual and combined
     if (selectedObjects.length > 0) {
       console.log('🎨 Drawing selection for:', selectedObjects);
-      console.log('🎨 Available objects:', {
-        paths: paths.map(p => p.id),
-        shapes: shapes.map(s => s.id), 
-        texts: texts.map(t => t.id)
-      });
 
-      // 简化ID匹配逻辑，直接比较而不做字符串转换
+      // 强制 id 类型一致
+      const selectedIdSet = new Set(selectedObjects.map(id => String(id).trim()));
       const selectedObjs = [
-        ...paths.filter(p => selectedObjects.includes(p.id)),
-        ...shapes.filter(s => selectedObjects.includes(s.id)),
-        ...texts.filter(t => selectedObjects.includes(t.id))
+        ...paths.filter(p => selectedIdSet.has(String(p.id).trim())),
+        ...shapes.filter(s => selectedIdSet.has(String(s.id).trim())),
+        ...texts.filter(t => selectedIdSet.has(String(t.id).trim()))
       ];
 
       console.log('🎨 Found selected objects:', selectedObjs.map(obj => obj.id));
-      console.log('🎨 Selected count - Expected:', selectedObjects.length, 'Found:', selectedObjs.length);
 
-      // 1. 先画所有被选中的对象高亮
+      // 只高亮每个对象本身
       selectedObjs.forEach(obj => {
         const bounds = getBounds(obj);
         this.drawIndividualHighlight(bounds, obj.id);
       });
 
-      // 2. 再画 selection box
-      if (selectedObjs.length > 1) {
-        const boundsArr = selectedObjs.map(obj => getBounds(obj));
-        const minX = Math.min(...boundsArr.map(b => b.x));
-        const minY = Math.min(...boundsArr.map(b => b.y));
-        const maxX = Math.max(...boundsArr.map(b => b.x + b.width));
-        const maxY = Math.max(...boundsArr.map(b => b.y + b.height));
-        const selectionBounds = {
-          x: minX,
-          y: minY,
-          width: maxX - minX,
-          height: maxY - minY
-        };
-        this.drawSelectionBox(selectionBounds);
-      } else if (selectedObjs.length === 1) {
-        const bounds = getBounds(selectedObjs[0]);
-        this.drawSelectionBox(bounds);
-      }
+      // 不再画 selection box
+      // if (selectedObjs.length > 1) {
+      //   const boundsArr = selectedObjs.map(obj => getBounds(obj));
+      //   const minX = Math.min(...boundsArr.map(b => b.x));
+      //   const minY = Math.min(...boundsArr.map(b => b.y));
+      //   const maxX = Math.max(...boundsArr.map(b => b.x + b.width));
+      //   const maxY = Math.max(...boundsArr.map(b => b.y + b.height));
+      //   const selectionBounds = {
+      //     x: minX,
+      //     y: minY,
+      //     width: maxX - minX,
+      //     height: maxY - minY
+      //   };
+      //   this.drawSelectionBox(selectionBounds);
+      // } else if (selectedObjs.length === 1) {
+      //   const bounds = getBounds(selectedObjs[0]);
+      //   this.drawSelectionBox(bounds);
+      // }
     }
 
     // Draw text editor
