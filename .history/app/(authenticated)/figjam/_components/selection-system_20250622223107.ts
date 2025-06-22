@@ -1,48 +1,70 @@
 import { Point, DrawingPath, Shape, TextElement } from './types';
-import {
-  isPointInPath,
-  isPointInShape,
-  isPointInText,
-  getBounds,
-  getHandleAtPoint,
-  getCursorForHandle
+import { 
+  isPointInPath, 
+  isPointInShape, 
+  isPointInText, 
+  getBounds, 
+  getHandleAtPoint, 
+  getCursorForHandle 
 } from './canvas-utils';
 
 export class SelectionSystem {
+  private selectedObjects: string[] = [];
   private onSelectionChange: (selectedIds: string[]) => void;
 
   constructor(onSelectionChange: (selectedIds: string[]) => void) {
     this.onSelectionChange = onSelectionChange;
   }
 
-  addToSelection(objectId: string, selectedObjects: string[]) {
-    const id = String(objectId).trim();
-    if (!selectedObjects.includes(id)) {
-      this.onSelectionChange([...selectedObjects, id]);
+  getSelectedObjects(): string[] {
+    return [...this.selectedObjects];
+  }
+
+  setSelectedObjects(objectIds: string[]) {
+    console.log('🔄 setSelectedObjects called with:', objectIds);
+    console.log('🔄 Previous selection:', this.selectedObjects);
+    this.selectedObjects = [...objectIds];
+    console.log('🔄 New selection after update:', this.selectedObjects);
+    this.onSelectionChange(this.selectedObjects);
+  }
+
+  addToSelection(objectId: string) {
+    console.log('➕ addToSelection called with:', objectId);
+    console.log('➕ Current selection before add:', this.selectedObjects);
+    if (!this.selectedObjects.includes(objectId)) {
+      this.selectedObjects.push(objectId);
+      console.log('➕ Selection after push:', this.selectedObjects);
+      this.onSelectionChange(this.selectedObjects);
+      console.log('➕ After callback, selection is:', this.selectedObjects);
+    } else {
+      console.log('➕ Object already selected, skipping');
     }
   }
 
-  removeFromSelection(objectId: string, selectedObjects: string[]) {
-    const id = String(objectId).trim();
-    this.onSelectionChange(selectedObjects.filter(i => i !== id));
+  removeFromSelection(objectId: string) {
+    console.log('➖ removeFromSelection called with:', objectId);
+    console.log('➖ Current selection before remove:', this.selectedObjects);
+    this.selectedObjects = this.selectedObjects.filter(id => id !== objectId);
+    console.log('➖ Selection after filter:', this.selectedObjects);
+    this.onSelectionChange(this.selectedObjects);
   }
 
   clearSelection() {
-    this.onSelectionChange([]);
+    this.selectedObjects = [];
+    this.onSelectionChange(this.selectedObjects);
   }
 
-  isSelected(objectId: string, selectedObjects: string[]): boolean {
-    const id = String(objectId).trim();
-    return selectedObjects.includes(id);
+  isSelected(objectId: string): boolean {
+    return this.selectedObjects.includes(objectId);
   }
 
   selectAll(paths: DrawingPath[], shapes: Shape[], texts: TextElement[]) {
     const allIds = [
-      ...paths.map(p => String(p.id).trim()),
-      ...shapes.map(s => String(s.id).trim()),
-      ...texts.map(t => String(t.id).trim())
+      ...paths.map(p => p.id),
+      ...shapes.map(s => s.id),
+      ...texts.map(t => t.id)
     ];
-    this.onSelectionChange(allIds);
+    this.setSelectedObjects(allIds);
   }
 
   findObjectAtPoint(
@@ -56,19 +78,35 @@ export class SelectionSystem {
       ...shapes.map(s => ({ ...s, objectType: 'shape' as const })),
       ...texts.map(t => ({ ...t, objectType: 'text' as const }))
     ].sort((a, b) => (b.zIndex || 0) - (a.zIndex || 0));
+
+    console.log('🎯 findObjectAtPoint called with:', {
+      point,
+      totalObjects: allObjects.length,
+      pathCount: paths.length,
+      shapeCount: shapes.length,
+      textCount: texts.length,
+      allObjectIds: allObjects.map(obj => obj.id)
+    });
+
     for (const obj of allObjects) {
       let isHit = false;
+      
       if (obj.objectType === 'path') {
         isHit = isPointInPath(point, obj as DrawingPath);
       } else if (obj.objectType === 'shape') {
         isHit = isPointInShape(point, obj as Shape);
+        console.log('🔵 Shape hit test for', obj.id, ':', isHit);
       } else if (obj.objectType === 'text') {
         isHit = isPointInText(point, obj as TextElement);
       }
+      
       if (isHit) {
-        return String(obj.id).trim();
+        console.log('✅ Hit detected for object:', obj.id, 'type:', obj.objectType);
+        return obj.id;
       }
     }
+
+    console.log('❌ No objects hit at point:', point);
     return null;
   }
 
@@ -77,46 +115,65 @@ export class SelectionSystem {
     paths: DrawingPath[],
     shapes: Shape[],
     texts: TextElement[],
-    selectedObjects: string[],
     isMultiSelectPressed: boolean = false
   ): string | null {
     const clickedObjectId = this.findObjectAtPoint(point, paths, shapes, texts);
+    
+    console.log('🎯 Selection Debug:', {
+      clickedObjectId,
+      isMultiSelectPressed,
+      currentSelection: this.selectedObjects,
+      isAlreadySelected: clickedObjectId ? this.isSelected(clickedObjectId) : false
+    });
+
     if (clickedObjectId) {
       if (isMultiSelectPressed) {
-        if (this.isSelected(clickedObjectId, selectedObjects)) {
-          this.removeFromSelection(clickedObjectId, selectedObjects);
+        // Toggle selection
+        if (this.isSelected(clickedObjectId)) {
+          console.log('➖ Removing from selection:', clickedObjectId);
+          this.removeFromSelection(clickedObjectId);
         } else {
-          this.addToSelection(clickedObjectId, selectedObjects);
+          console.log('➕ Adding to selection:', clickedObjectId);
+          this.addToSelection(clickedObjectId);
         }
       } else {
-        this.onSelectionChange([clickedObjectId]);
+        // Single selection
+        console.log('🎯 Single selection:', clickedObjectId);
+        this.setSelectedObjects([clickedObjectId]);
       }
+      console.log('📝 Final selection:', this.selectedObjects);
       return clickedObjectId;
     } else if (!isMultiSelectPressed) {
+      // Clicked on empty space, clear selection
+      console.log('🧹 Clearing selection');
       this.clearSelection();
     }
+
     return null;
   }
 
   getSelectionBounds(
     paths: DrawingPath[],
     shapes: Shape[],
-    texts: TextElement[],
-    selectedObjects: string[]
+    texts: TextElement[]
   ): { x: number; y: number; width: number; height: number } | null {
-    if (selectedObjects.length === 0) return null;
-    const selectedIdSet = new Set(selectedObjects.map(id => String(id).trim()));
+    if (this.selectedObjects.length === 0) return null;
+
     const selectedObjs = [
-      ...paths.filter(p => selectedIdSet.has(String(p.id).trim())),
-      ...shapes.filter(s => selectedIdSet.has(String(s.id).trim())),
-      ...texts.filter(t => selectedIdSet.has(String(t.id).trim()))
+      ...paths.filter(p => this.selectedObjects.includes(p.id)),
+      ...shapes.filter(s => this.selectedObjects.includes(s.id)),
+      ...texts.filter(t => this.selectedObjects.includes(t.id))
     ];
+
     if (selectedObjs.length === 0) return null;
+
     const bounds = selectedObjs.map(obj => getBounds(obj));
+    
     const minX = Math.min(...bounds.map(b => b.x));
     const minY = Math.min(...bounds.map(b => b.y));
     const maxX = Math.max(...bounds.map(b => b.x + b.width));
     const maxY = Math.max(...bounds.map(b => b.y + b.height));
+
     return {
       x: minX,
       y: minY,
@@ -129,11 +186,11 @@ export class SelectionSystem {
     point: Point,
     paths: DrawingPath[],
     shapes: Shape[],
-    texts: TextElement[],
-    selectedObjects: string[]
+    texts: TextElement[]
   ): string | null {
-    const selectionBounds = this.getSelectionBounds(paths, shapes, texts, selectedObjects);
+    const selectionBounds = this.getSelectionBounds(paths, shapes, texts);
     if (!selectionBounds) return null;
+
     return getHandleAtPoint(point, selectionBounds);
   }
 
@@ -141,21 +198,24 @@ export class SelectionSystem {
     point: Point,
     paths: DrawingPath[],
     shapes: Shape[],
-    texts: TextElement[],
-    selectedObjects: string[]
+    texts: TextElement[]
   ): string {
-    const handle = this.getHandleAtPoint(point, paths, shapes, texts, selectedObjects);
+    // Check if point is on a resize handle
+    const handle = this.getHandleAtPoint(point, paths, shapes, texts);
     if (handle) {
       return getCursorForHandle(handle);
     }
-    const selectedIdSet = new Set(selectedObjects.map(id => String(id).trim()));
+
+    // Check if point is on a selected object
     const selectedObjs = [
-      ...paths.filter(p => selectedIdSet.has(String(p.id).trim())),
-      ...shapes.filter(s => selectedIdSet.has(String(s.id).trim())),
-      ...texts.filter(t => selectedIdSet.has(String(t.id).trim()))
+      ...paths.filter(p => this.selectedObjects.includes(p.id)),
+      ...shapes.filter(s => this.selectedObjects.includes(s.id)),
+      ...texts.filter(t => this.selectedObjects.includes(t.id))
     ];
+
     for (const obj of selectedObjs) {
       let isHit = false;
+      
       if ('points' in obj) {
         isHit = isPointInPath(point, obj as DrawingPath);
       } else if ('startPoint' in obj) {
@@ -163,14 +223,18 @@ export class SelectionSystem {
       } else {
         isHit = isPointInText(point, obj as TextElement);
       }
+
       if (isHit) {
         return 'move';
       }
     }
+
+    // Check if point is on any object
     const clickedObjectId = this.findObjectAtPoint(point, paths, shapes, texts);
     if (clickedObjectId) {
       return 'pointer';
     }
+
     return 'default';
   }
 
@@ -180,27 +244,28 @@ export class SelectionSystem {
     texts: TextElement[],
     setPaths: (paths: DrawingPath[]) => void,
     setShapes: (shapes: Shape[]) => void,
-    setTexts: (texts: TextElement[]) => void,
-    selectedObjects: string[]
+    setTexts: (texts: TextElement[]) => void
   ) {
-    if (selectedObjects.length === 0) return;
-    setPaths(paths.filter(p => !selectedObjects.includes(p.id)));
-    setShapes(shapes.filter(s => !selectedObjects.includes(s.id)));
-    setTexts(texts.filter(t => !selectedObjects.includes(t.id)));
+    if (this.selectedObjects.length === 0) return;
+
+    setPaths(paths.filter(p => !this.selectedObjects.includes(p.id)));
+    setShapes(shapes.filter(s => !this.selectedObjects.includes(s.id)));
+    setTexts(texts.filter(t => !this.selectedObjects.includes(t.id)));
+    
     this.clearSelection();
   }
 
   copySelected(
     paths: DrawingPath[],
     shapes: Shape[],
-    texts: TextElement[],
-    selectedObjects: string[]
+    texts: TextElement[]
   ): (DrawingPath | Shape | TextElement)[] {
     const selectedObjs = [
-      ...paths.filter(p => selectedObjects.includes(p.id)),
-      ...shapes.filter(s => selectedObjects.includes(s.id)),
-      ...texts.filter(t => selectedObjects.includes(t.id))
+      ...paths.filter(p => this.selectedObjects.includes(p.id)),
+      ...shapes.filter(s => this.selectedObjects.includes(s.id)),
+      ...texts.filter(t => this.selectedObjects.includes(t.id))
     ];
+    
     return selectedObjs.map(obj => ({ ...obj }));
   }
 
@@ -211,19 +276,22 @@ export class SelectionSystem {
     setPaths: (paths: DrawingPath[]) => void,
     setShapes: (shapes: Shape[]) => void,
     setTexts: (texts: TextElement[]) => void,
-    selectedObjects: string[],
     offset: Point = { x: 20, y: 20 }
   ) {
-    const selectedObjs = this.copySelected(paths, shapes, texts, selectedObjects);
+    const selectedObjs = this.copySelected(paths, shapes, texts);
     const newIds: string[] = [];
+
     selectedObjs.forEach(obj => {
       let objType = 'unknown';
       if ('points' in obj) objType = 'path';
       else if ('startPoint' in obj) objType = 'shape';
       else objType = 'text';
+      
       const newId = `${objType}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
       newIds.push(newId);
+
       if ('points' in obj) {
+        // DrawingPath
         const newPath: DrawingPath = {
           ...obj,
           id: newId,
@@ -231,6 +299,7 @@ export class SelectionSystem {
         };
         setPaths([...paths, newPath]);
       } else if ('startPoint' in obj) {
+        // Shape
         const newShape: Shape = {
           ...obj,
           id: newId,
@@ -239,6 +308,7 @@ export class SelectionSystem {
         };
         setShapes([...shapes, newShape]);
       } else {
+        // TextElement
         const newText: TextElement = {
           ...obj,
           id: newId,
@@ -247,7 +317,9 @@ export class SelectionSystem {
         setTexts([...texts, newText]);
       }
     });
-    this.onSelectionChange(newIds);
+
+    // Select the duplicated objects
+    this.setSelectedObjects(newIds);
   }
 
   bringToFront(
@@ -256,15 +328,22 @@ export class SelectionSystem {
     texts: TextElement[],
     setPaths: (paths: DrawingPath[]) => void,
     setShapes: (shapes: Shape[]) => void,
-    setTexts: (texts: TextElement[]) => void,
-    selectedObjects: string[]
+    setTexts: (texts: TextElement[]) => void
   ) {
-    if (selectedObjects.length === 0) return;
+    if (this.selectedObjects.length === 0) return;
+
     const allObjects = [...paths, ...shapes, ...texts];
     const maxZ = Math.max(0, ...allObjects.map(obj => obj.zIndex || 0));
-    setPaths(paths.map(p => selectedObjects.includes(p.id) ? { ...p, zIndex: maxZ + 1 } : p));
-    setShapes(shapes.map(s => selectedObjects.includes(s.id) ? { ...s, zIndex: maxZ + 1 } : s));
-    setTexts(texts.map(t => selectedObjects.includes(t.id) ? { ...t, zIndex: maxZ + 1 } : t));
+
+    setPaths(paths.map(p => 
+      this.selectedObjects.includes(p.id) ? { ...p, zIndex: maxZ + 1 } : p
+    ));
+    setShapes(shapes.map(s => 
+      this.selectedObjects.includes(s.id) ? { ...s, zIndex: maxZ + 1 } : s
+    ));
+    setTexts(texts.map(t => 
+      this.selectedObjects.includes(t.id) ? { ...t, zIndex: maxZ + 1 } : t
+    ));
   }
 
   sendToBack(
@@ -273,14 +352,21 @@ export class SelectionSystem {
     texts: TextElement[],
     setPaths: (paths: DrawingPath[]) => void,
     setShapes: (shapes: Shape[]) => void,
-    setTexts: (texts: TextElement[]) => void,
-    selectedObjects: string[]
+    setTexts: (texts: TextElement[]) => void
   ) {
-    if (selectedObjects.length === 0) return;
+    if (this.selectedObjects.length === 0) return;
+
     const allObjects = [...paths, ...shapes, ...texts];
     const minZ = Math.min(0, ...allObjects.map(obj => obj.zIndex || 0));
-    setPaths(paths.map(p => selectedObjects.includes(p.id) ? { ...p, zIndex: minZ - 1 } : p));
-    setShapes(shapes.map(s => selectedObjects.includes(s.id) ? { ...s, zIndex: minZ - 1 } : s));
-    setTexts(texts.map(t => selectedObjects.includes(t.id) ? { ...t, zIndex: minZ - 1 } : t));
+
+    setPaths(paths.map(p => 
+      this.selectedObjects.includes(p.id) ? { ...p, zIndex: minZ - 1 } : p
+    ));
+    setShapes(shapes.map(s => 
+      this.selectedObjects.includes(s.id) ? { ...s, zIndex: minZ - 1 } : s
+    ));
+    setTexts(texts.map(t => 
+      this.selectedObjects.includes(t.id) ? { ...t, zIndex: minZ - 1 } : t
+    ));
   }
 }

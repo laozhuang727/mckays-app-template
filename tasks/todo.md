@@ -60,10 +60,11 @@
 - [x] Create undo/redo system with command pattern
 
 ### 基本形状 ✅ 已完成
-- [x] Create Rectangle shape object
-- [x] Create Circle/Ellipse shape object  
+- [x] Create Rectangle shape object (支持Shift键画正方形)
+- [x] Create Circle/Ellipse shape object (默认椭圆，Shift键画正圆)
 - [ ] Create Line shape object (deferred)
 - [x] Implement shape preview while drawing (dashed preview)
+- [x] Add Shift key constraint for perfect shapes (正方形/正圆)
 - [ ] Add snap-to-grid functionality (optional)
 
 ## 阶段 2：高级工具与 UI
@@ -286,8 +287,10 @@
 
 #### 绘图工具
 - **笔刷工具**: 流畅的自由绘制，支持可变线宽和颜色
-- **形状工具**: 矩形和圆形绘制，支持预览和即时反馈
+- **矩形工具**: 自由矩形绘制，按住Shift键画正方形
+- **椭圆工具**: 默认椭圆绘制，按住Shift键画正圆
 - **文本工具**: 点击放置文本，内联编辑，支持字体大小和颜色
+- **约束绘制**: Shift键约束模式，确保完美几何形状
 
 #### 选择与操作系统
 - **智能选择**: 点击选择对象，Ctrl+点击多选，自动分层检测

@@ -87,9 +87,8 @@ export class DrawingEngine {
     } else if (shape.type === 'circle') {
       const centerX = x + width / 2;
       const centerY = y + height / 2;
-      const radiusX = width / 2;
-      const radiusY = height / 2;
-      this.ctx.ellipse(centerX, centerY, radiusX, radiusY, 0, 0, 2 * Math.PI);
+      const radius = Math.min(width, height) / 2;
+      this.ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
     }
 
     if (shape.fillColor && shape.fillColor !== 'transparent') {
@@ -150,9 +149,8 @@ export class DrawingEngine {
     } else if (shape.type === 'circle') {
       const centerX = x + width / 2;
       const centerY = y + height / 2;
-      const radiusX = width / 2;
-      const radiusY = height / 2;
-      this.ctx.ellipse(centerX, centerY, radiusX, radiusY, 0, 0, 2 * Math.PI);
+      const radius = Math.min(width, height) / 2;
+      this.ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
     }
 
     this.ctx.stroke();
@@ -365,30 +363,30 @@ export class DrawingEngine {
 
       console.log('🎨 Found selected objects:', selectedObjs.map(obj => obj.id));
 
-      // 只高亮每个对象本身
+      // 1. 只高亮每个对象本身
       selectedObjs.forEach(obj => {
         const bounds = getBounds(obj);
         this.drawIndividualHighlight(bounds, obj.id);
       });
 
-      // 不再画 selection box
-      // if (selectedObjs.length > 1) {
-      //   const boundsArr = selectedObjs.map(obj => getBounds(obj));
-      //   const minX = Math.min(...boundsArr.map(b => b.x));
-      //   const minY = Math.min(...boundsArr.map(b => b.y));
-      //   const maxX = Math.max(...boundsArr.map(b => b.x + b.width));
-      //   const maxY = Math.max(...boundsArr.map(b => b.y + b.height));
-      //   const selectionBounds = {
-      //     x: minX,
-      //     y: minY,
-      //     width: maxX - minX,
-      //     height: maxY - minY
-      //   };
-      //   this.drawSelectionBox(selectionBounds);
-      // } else if (selectedObjs.length === 1) {
-      //   const bounds = getBounds(selectedObjs[0]);
-      //   this.drawSelectionBox(bounds);
-      // }
+      // 2. selection box 只画外包围盒
+      if (selectedObjs.length > 1) {
+        const boundsArr = selectedObjs.map(obj => getBounds(obj));
+        const minX = Math.min(...boundsArr.map(b => b.x));
+        const minY = Math.min(...boundsArr.map(b => b.y));
+        const maxX = Math.max(...boundsArr.map(b => b.x + b.width));
+        const maxY = Math.max(...boundsArr.map(b => b.y + b.height));
+        const selectionBounds = {
+          x: minX,
+          y: minY,
+          width: maxX - minX,
+          height: maxY - minY
+        };
+        this.drawSelectionBox(selectionBounds);
+      } else if (selectedObjs.length === 1) {
+        const bounds = getBounds(selectedObjs[0]);
+        this.drawSelectionBox(bounds);
+      }
     }
 
     // Draw text editor

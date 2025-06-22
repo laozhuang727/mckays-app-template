@@ -139,6 +139,14 @@ export function CanvasBoard({ boardId }: CanvasBoardProps) {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  // Update drawing engine viewport when viewport changes
+  useEffect(() => {
+    if (drawingEngine) {
+      drawingEngine.updateViewport(viewport);
+      redraw();
+    }
+  }, [viewport, drawingEngine]);
+
   // Redraw canvas
   const redraw = useCallback(() => {
     if (!drawingEngine || !canvasRef.current) return;
@@ -167,18 +175,10 @@ export function CanvasBoard({ boardId }: CanvasBoardProps) {
     editingText, textInput, strokeColor, strokeWidth, fontSize, fontFamily, fontWeight, fontStyle
   ]);
 
-  // Update drawing engine viewport when viewport changes
-  useEffect(() => {
-    if (drawingEngine) {
-      drawingEngine.updateViewport(viewport);
-      redraw();
-    }
-  }, [viewport, drawingEngine, redraw]);
-
   // Redraw when state changes
   useEffect(() => {
     redraw();
-  }, [redraw, viewport]);
+  }, [redraw]);
 
   // Mouse event handlers
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
@@ -213,7 +213,7 @@ export function CanvasBoard({ boardId }: CanvasBoardProps) {
 
     if (currentTool === "select") {
       // Check if clicking on a resize handle first
-      const handle = selectionSystem.getHandleAtPoint(canvasPoint, paths, shapes, texts, selectedObjects);
+      const handle = selectionSystem.getHandleAtPoint(canvasPoint, paths, shapes, texts);
       
       if (handle) {
         setResizeHandle(handle);
@@ -221,7 +221,7 @@ export function CanvasBoard({ boardId }: CanvasBoardProps) {
         setIsDragging(true);
         
         // Store initial bounds and objects for resizing
-        const bounds = selectionSystem.getSelectionBounds(paths, shapes, texts, selectedObjects);
+        const bounds = selectionSystem.getSelectionBounds(paths, shapes, texts);
         setInitialBounds(bounds);
         setInitialObjects({ paths: [...paths], shapes: [...shapes], texts: [...texts] });
       } else {
@@ -242,7 +242,6 @@ export function CanvasBoard({ boardId }: CanvasBoardProps) {
           paths, 
           shapes, 
           texts, 
-          selectedObjects,
           e.ctrlKey || e.metaKey
         );
         
@@ -251,20 +250,10 @@ export function CanvasBoard({ boardId }: CanvasBoardProps) {
           setDebugInfo(`点击结果: ${clickedObject || '无'} | 选中: ${selectedObjects.join(', ') || '无'}`);
         }, 10);
         
-        // Start dragging if we clicked on an object
-        // Allow dragging when clicking on selected objects, even during multi-select
-        const objectAtPoint = selectionSystem.findObjectAtPoint(canvasPoint, paths, shapes, texts);
-        
-        if (clickedObject || objectAtPoint) {
-          // Only start drag if not in the middle of multi-select operation
-          if (!e.ctrlKey && !e.metaKey) {
-            setIsDragging(true);
-            setDragStart(canvasPoint);
-          } else if (selectedObjects.includes(clickedObject || objectAtPoint || '')) {
-            // Allow dragging selected objects even during multi-select
-            setIsDragging(true);
-            setDragStart(canvasPoint);
-          }
+        // Only start dragging if we clicked on an object and not holding Ctrl/Cmd
+        if (clickedObject && !e.ctrlKey && !e.metaKey) {
+          setIsDragging(true);
+          setDragStart(canvasPoint);
         }
       }
     } else if (currentTool === "pen") {
@@ -297,21 +286,7 @@ export function CanvasBoard({ boardId }: CanvasBoardProps) {
     if (isDrawing && currentTool === "pen") {
       setCurrentPath(prev => [...prev, canvasPoint]);
     } else if (isDrawing && currentShape) {
-      let endPoint = canvasPoint;
-      
-      // Apply Shift key constraint for squares and circles
-      if (e.shiftKey && currentShape.startPoint) {
-        const width = Math.abs(canvasPoint.x - currentShape.startPoint.x);
-        const height = Math.abs(canvasPoint.y - currentShape.startPoint.y);
-        const size = Math.min(width, height);
-        
-        endPoint = {
-          x: currentShape.startPoint.x + (canvasPoint.x >= currentShape.startPoint.x ? size : -size),
-          y: currentShape.startPoint.y + (canvasPoint.y >= currentShape.startPoint.y ? size : -size)
-        };
-      }
-      
-      setCurrentShape(prev => prev ? { ...prev, endPoint } : null);
+      setCurrentShape(prev => prev ? { ...prev, endPoint: canvasPoint } : null);
     } else if (isDragging && dragStart && currentTool === "select") {
       if (resizeHandle && initialBounds && initialObjects && dragStart) {
         // Handle resizing
@@ -356,29 +331,6 @@ export function CanvasBoard({ boardId }: CanvasBoardProps) {
             newBounds.width += deltaX;
             newBounds.height += deltaY;
             break;
-        }
-        
-        // Apply Shift key constraint for proportional scaling
-        if (e.shiftKey && ['top-left', 'top-right', 'bottom-left', 'bottom-right'].includes(resizeHandle)) {
-          const aspectRatio = initialBounds.width / initialBounds.height;
-          
-          if (Math.abs(newBounds.width / newBounds.height - aspectRatio) > 0.1) {
-            if (resizeHandle === 'bottom-right' || resizeHandle === 'top-left') {
-              // Maintain aspect ratio based on width change
-              const targetHeight = newBounds.width / aspectRatio;
-              if (resizeHandle === 'top-left') {
-                newBounds.y = initialBounds.y + initialBounds.height - targetHeight;
-              }
-              newBounds.height = targetHeight;
-            } else if (resizeHandle === 'top-right' || resizeHandle === 'bottom-left') {
-              // Maintain aspect ratio based on height change
-              const targetWidth = newBounds.height * aspectRatio;
-              if (resizeHandle === 'bottom-left') {
-                newBounds.x = initialBounds.x + initialBounds.width - targetWidth;
-              }
-              newBounds.width = targetWidth;
-            }
-          }
         }
         
         // Apply scaling to selected objects
@@ -500,7 +452,7 @@ export function CanvasBoard({ boardId }: CanvasBoardProps) {
         }
       }
     } else if (currentTool === "select") {
-      const cursor = selectionSystem.getCursorForPoint(canvasPoint, paths, shapes, texts, selectedObjects);
+      const cursor = selectionSystem.getCursorForPoint(canvasPoint, paths, shapes, texts);
       setCursorStyle(cursor);
     }
   }, [
@@ -610,7 +562,7 @@ export function CanvasBoard({ boardId }: CanvasBoardProps) {
           selectionSystem.selectAll(paths, shapes, texts);
         } else if (e.key === 'c') {
           e.preventDefault();
-          const copied = selectionSystem.copySelected(paths, shapes, texts, selectedObjects);
+          const copied = selectionSystem.copySelected(paths, shapes, texts);
           setClipboard(copied);
         } else if (e.key === 'v') {
           e.preventDefault();
@@ -651,15 +603,15 @@ export function CanvasBoard({ boardId }: CanvasBoardProps) {
               }
             });
             
-            setSelectedObjects(newIds);
+            selectionSystem.setSelectedObjects(newIds);
           }
         } else if (e.key === 'd') {
           e.preventDefault();
-          selectionSystem.duplicateSelected(paths, shapes, texts, setPaths, setShapes, setTexts, selectedObjects);
+          selectionSystem.duplicateSelected(paths, shapes, texts, setPaths, setShapes, setTexts);
         }
       } else if (e.key === 'Delete') {
         e.preventDefault();
-        selectionSystem.deleteSelected(paths, shapes, texts, setPaths, setShapes, setTexts, selectedObjects);
+        selectionSystem.deleteSelected(paths, shapes, texts, setPaths, setShapes, setTexts);
       } else if (e.key >= '1' && e.key <= '6') {
         e.preventDefault();
         const toolMap: { [key: string]: ToolType } = {
@@ -675,7 +627,7 @@ export function CanvasBoard({ boardId }: CanvasBoardProps) {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [editingText, completeTextInput, commandSystem, selectionSystem, paths, shapes, texts, clipboard, selectedObjects]);
+  }, [editingText, completeTextInput, commandSystem, selectionSystem, paths, shapes, texts]);
 
   // Zoom and pan handlers
   const handleWheel = useCallback((e: React.WheelEvent) => {
@@ -709,20 +661,6 @@ export function CanvasBoard({ boardId }: CanvasBoardProps) {
       }));
     }
   }, [viewport]);
-
-  const handleResize = useCallback(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = setupCanvas(canvas);
-    const engine = new DrawingEngine(ctx, viewport);
-    setDrawingEngine(engine);
-    redraw();
-  }, [viewport, redraw]);
-
-  useEffect(() => {
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, [handleResize]);
 
   return (
     <div className="flex h-screen bg-gray-100">
@@ -865,13 +803,13 @@ export function CanvasBoard({ boardId }: CanvasBoardProps) {
               <div className="flex gap-2 mt-2">
                 <Button
                   size="sm"
-                  onClick={() => selectionSystem.bringToFront(paths, shapes, texts, setPaths, setShapes, setTexts, selectedObjects)}
+                  onClick={() => selectionSystem.bringToFront(paths, shapes, texts, setPaths, setShapes, setTexts)}
                 >
                   置顶
                 </Button>
                 <Button
                   size="sm"
-                  onClick={() => selectionSystem.sendToBack(paths, shapes, texts, setPaths, setShapes, setTexts, selectedObjects)}
+                  onClick={() => selectionSystem.sendToBack(paths, shapes, texts, setPaths, setShapes, setTexts)}
                 >
                   置底
                 </Button>

@@ -15,8 +15,8 @@ import {
 const tools: Array<{ type: ToolType; icon: React.ComponentType<{ className?: string }>; label: string }> = [
   { type: "select", icon: MousePointer2, label: "Select" },
   { type: "pen", icon: Pen, label: "Pen" },
-  { type: "rectangle", icon: Square, label: "Rectangle" },
-  { type: "circle", icon: Circle, label: "Circle" },
+  { type: "rectangle", icon: Square, label: "Rectangle (Hold Shift for square)" },
+  { type: "circle", icon: Circle, label: "Circle (Hold Shift for perfect circle)" },
   { type: "text", icon: Type, label: "Text" },
   { type: "eraser", icon: Eraser, label: "Eraser" },
 ];

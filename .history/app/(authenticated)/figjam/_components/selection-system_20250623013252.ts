@@ -180,27 +180,28 @@ export class SelectionSystem {
     texts: TextElement[],
     setPaths: (paths: DrawingPath[]) => void,
     setShapes: (shapes: Shape[]) => void,
-    setTexts: (texts: TextElement[]) => void,
-    selectedObjects: string[]
+    setTexts: (texts: TextElement[]) => void
   ) {
-    if (selectedObjects.length === 0) return;
-    setPaths(paths.filter(p => !selectedObjects.includes(p.id)));
-    setShapes(shapes.filter(s => !selectedObjects.includes(s.id)));
-    setTexts(texts.filter(t => !selectedObjects.includes(t.id)));
+    if (this.selectedObjects.length === 0) return;
+
+    setPaths(paths.filter(p => !this.selectedObjects.includes(p.id)));
+    setShapes(shapes.filter(s => !this.selectedObjects.includes(s.id)));
+    setTexts(texts.filter(t => !this.selectedObjects.includes(t.id)));
+
     this.clearSelection();
   }
 
   copySelected(
     paths: DrawingPath[],
     shapes: Shape[],
-    texts: TextElement[],
-    selectedObjects: string[]
+    texts: TextElement[]
   ): (DrawingPath | Shape | TextElement)[] {
     const selectedObjs = [
-      ...paths.filter(p => selectedObjects.includes(p.id)),
-      ...shapes.filter(s => selectedObjects.includes(s.id)),
-      ...texts.filter(t => selectedObjects.includes(t.id))
+      ...paths.filter(p => this.selectedObjects.includes(p.id)),
+      ...shapes.filter(s => this.selectedObjects.includes(s.id)),
+      ...texts.filter(t => this.selectedObjects.includes(t.id))
     ];
+
     return selectedObjs.map(obj => ({ ...obj }));
   }
 
@@ -211,19 +212,22 @@ export class SelectionSystem {
     setPaths: (paths: DrawingPath[]) => void,
     setShapes: (shapes: Shape[]) => void,
     setTexts: (texts: TextElement[]) => void,
-    selectedObjects: string[],
     offset: Point = { x: 20, y: 20 }
   ) {
-    const selectedObjs = this.copySelected(paths, shapes, texts, selectedObjects);
+    const selectedObjs = this.copySelected(paths, shapes, texts);
     const newIds: string[] = [];
+
     selectedObjs.forEach(obj => {
       let objType = 'unknown';
       if ('points' in obj) objType = 'path';
       else if ('startPoint' in obj) objType = 'shape';
       else objType = 'text';
+
       const newId = `${objType}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
       newIds.push(newId);
+
       if ('points' in obj) {
+        // DrawingPath
         const newPath: DrawingPath = {
           ...obj,
           id: newId,
@@ -231,6 +235,7 @@ export class SelectionSystem {
         };
         setPaths([...paths, newPath]);
       } else if ('startPoint' in obj) {
+        // Shape
         const newShape: Shape = {
           ...obj,
           id: newId,
@@ -239,6 +244,7 @@ export class SelectionSystem {
         };
         setShapes([...shapes, newShape]);
       } else {
+        // TextElement
         const newText: TextElement = {
           ...obj,
           id: newId,
@@ -247,6 +253,8 @@ export class SelectionSystem {
         setTexts([...texts, newText]);
       }
     });
+
+    // Select the duplicated objects
     this.onSelectionChange(newIds);
   }
 
@@ -256,15 +264,22 @@ export class SelectionSystem {
     texts: TextElement[],
     setPaths: (paths: DrawingPath[]) => void,
     setShapes: (shapes: Shape[]) => void,
-    setTexts: (texts: TextElement[]) => void,
-    selectedObjects: string[]
+    setTexts: (texts: TextElement[]) => void
   ) {
-    if (selectedObjects.length === 0) return;
+    if (this.selectedObjects.length === 0) return;
+
     const allObjects = [...paths, ...shapes, ...texts];
     const maxZ = Math.max(0, ...allObjects.map(obj => obj.zIndex || 0));
-    setPaths(paths.map(p => selectedObjects.includes(p.id) ? { ...p, zIndex: maxZ + 1 } : p));
-    setShapes(shapes.map(s => selectedObjects.includes(s.id) ? { ...s, zIndex: maxZ + 1 } : s));
-    setTexts(texts.map(t => selectedObjects.includes(t.id) ? { ...t, zIndex: maxZ + 1 } : t));
+
+    setPaths(paths.map(p =>
+      this.selectedObjects.includes(p.id) ? { ...p, zIndex: maxZ + 1 } : p
+    ));
+    setShapes(shapes.map(s =>
+      this.selectedObjects.includes(s.id) ? { ...s, zIndex: maxZ + 1 } : s
+    ));
+    setTexts(texts.map(t =>
+      this.selectedObjects.includes(t.id) ? { ...t, zIndex: maxZ + 1 } : t
+    ));
   }
 
   sendToBack(
@@ -273,14 +288,21 @@ export class SelectionSystem {
     texts: TextElement[],
     setPaths: (paths: DrawingPath[]) => void,
     setShapes: (shapes: Shape[]) => void,
-    setTexts: (texts: TextElement[]) => void,
-    selectedObjects: string[]
+    setTexts: (texts: TextElement[]) => void
   ) {
-    if (selectedObjects.length === 0) return;
+    if (this.selectedObjects.length === 0) return;
+
     const allObjects = [...paths, ...shapes, ...texts];
     const minZ = Math.min(0, ...allObjects.map(obj => obj.zIndex || 0));
-    setPaths(paths.map(p => selectedObjects.includes(p.id) ? { ...p, zIndex: minZ - 1 } : p));
-    setShapes(shapes.map(s => selectedObjects.includes(s.id) ? { ...s, zIndex: minZ - 1 } : s));
-    setTexts(texts.map(t => selectedObjects.includes(t.id) ? { ...t, zIndex: minZ - 1 } : t));
+
+    setPaths(paths.map(p =>
+      this.selectedObjects.includes(p.id) ? { ...p, zIndex: minZ - 1 } : p
+    ));
+    setShapes(shapes.map(s =>
+      this.selectedObjects.includes(s.id) ? { ...s, zIndex: minZ - 1 } : s
+    ));
+    setTexts(texts.map(t =>
+      this.selectedObjects.includes(t.id) ? { ...t, zIndex: minZ - 1 } : t
+    ));
   }
 }

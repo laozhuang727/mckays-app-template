@@ -139,6 +139,14 @@ export function CanvasBoard({ boardId }: CanvasBoardProps) {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  // Update drawing engine viewport when viewport changes
+  useEffect(() => {
+    if (drawingEngine) {
+      drawingEngine.updateViewport(viewport);
+      redraw();
+    }
+  }, [viewport, drawingEngine]);
+
   // Redraw canvas
   const redraw = useCallback(() => {
     if (!drawingEngine || !canvasRef.current) return;
@@ -166,14 +174,6 @@ export function CanvasBoard({ boardId }: CanvasBoardProps) {
     drawingEngine, paths, shapes, texts, selectedObjects, currentPath, currentShape,
     editingText, textInput, strokeColor, strokeWidth, fontSize, fontFamily, fontWeight, fontStyle
   ]);
-
-  // Update drawing engine viewport when viewport changes
-  useEffect(() => {
-    if (drawingEngine) {
-      drawingEngine.updateViewport(viewport);
-      redraw();
-    }
-  }, [viewport, drawingEngine, redraw]);
 
   // Redraw when state changes
   useEffect(() => {
@@ -675,7 +675,7 @@ export function CanvasBoard({ boardId }: CanvasBoardProps) {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [editingText, completeTextInput, commandSystem, selectionSystem, paths, shapes, texts, clipboard, selectedObjects]);
+  }, [editingText, completeTextInput, commandSystem, selectionSystem, paths, shapes, texts]);
 
   // Zoom and pan handlers
   const handleWheel = useCallback((e: React.WheelEvent) => {
@@ -709,20 +709,6 @@ export function CanvasBoard({ boardId }: CanvasBoardProps) {
       }));
     }
   }, [viewport]);
-
-  const handleResize = useCallback(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = setupCanvas(canvas);
-    const engine = new DrawingEngine(ctx, viewport);
-    setDrawingEngine(engine);
-    redraw();
-  }, [viewport, redraw]);
-
-  useEffect(() => {
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, [handleResize]);
 
   return (
     <div className="flex h-screen bg-gray-100">

@@ -710,19 +710,10 @@ export function CanvasBoard({ boardId }: CanvasBoardProps) {
     }
   }, [viewport]);
 
-  const handleResize = useCallback(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = setupCanvas(canvas);
-    const engine = new DrawingEngine(ctx, viewport);
-    setDrawingEngine(engine);
-    redraw();
-  }, [viewport, redraw]);
-
   useEffect(() => {
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
-  }, [handleResize]);
+  }, [redraw, viewport]);
 
   return (
     <div className="flex h-screen bg-gray-100">

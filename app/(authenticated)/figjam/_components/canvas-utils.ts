@@ -45,21 +45,13 @@ export const getBounds = (obj: DrawingPath | Shape | TextElement): { x: number; 
     let x = minX;
     let y = minY;
 
-    // 对于圆形，确保bounds与实际绘制区域一致
+    // 对于圆形/椭圆，使用完整的边界框
     if (obj.type === 'circle') {
-      const x0 = obj.startPoint.x;
-      const y0 = obj.startPoint.y;
-      const x1 = obj.endPoint.x;
-      const y1 = obj.endPoint.y;
-      const w = Math.abs(x1 - x0);
-      const h = Math.abs(y1 - y0);
-      const diameter = Math.min(w, h);
-      const centerX = Math.min(x0, x1) + w / 2;
-      const centerY = Math.min(y0, y1) + h / 2;
-      x = centerX - diameter / 2;
-      y = centerY - diameter / 2;
-      width = diameter;
-      height = diameter;
+      // 椭圆现在支持任意宽高比，直接使用边界框
+      x = minX;
+      y = minY;
+      width = actualWidth;
+      height = actualHeight;
     }
 
     // console.log('📏 Shape bounds calculation:', { shapeId: obj.id, shapeType: obj.type });

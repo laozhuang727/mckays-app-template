@@ -87,9 +87,8 @@ export class DrawingEngine {
     } else if (shape.type === 'circle') {
       const centerX = x + width / 2;
       const centerY = y + height / 2;
-      const radiusX = width / 2;
-      const radiusY = height / 2;
-      this.ctx.ellipse(centerX, centerY, radiusX, radiusY, 0, 0, 2 * Math.PI);
+      const radius = Math.min(width, height) / 2;
+      this.ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
     }
 
     if (shape.fillColor && shape.fillColor !== 'transparent') {
@@ -150,9 +149,8 @@ export class DrawingEngine {
     } else if (shape.type === 'circle') {
       const centerX = x + width / 2;
       const centerY = y + height / 2;
-      const radiusX = width / 2;
-      const radiusY = height / 2;
-      this.ctx.ellipse(centerX, centerY, radiusX, radiusY, 0, 0, 2 * Math.PI);
+      const radius = Math.min(width, height) / 2;
+      this.ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
     }
 
     this.ctx.stroke();
