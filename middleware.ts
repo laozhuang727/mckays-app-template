@@ -1,21 +1,13 @@
-// Temporarily disabled Clerk middleware to allow development without authentication setup
-// import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server'
+import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server'
 
-// const isProtectedRoute = createRouteMatcher([
-//   '/dashboard(.*)',
-//   '/figjam(.*)',
-// ])
+const isProtectedRoute = createRouteMatcher([
+  '/dashboard(.*)',
+  '/figjam(.*)',
+])
 
-// export default clerkMiddleware(async (auth, req) => {
-//   if (isProtectedRoute(req)) await auth.protect()
-// })
-
-import { NextResponse } from 'next/server'
-import type { NextRequest } from 'next/server'
-
-export function middleware(request: NextRequest) {
-  return NextResponse.next()
-}
+export default clerkMiddleware(async (auth, req) => {
+  if (isProtectedRoute(req)) await auth.protect()
+})
 
 export const config = {
   matcher: [

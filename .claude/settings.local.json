@@ -16,8 +16,20 @@
       "Bash(rg:*)",
       "Bash(cp:*)",
       "Bash(wc:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "WebFetch(domain:scottspence.com)",
+      "WebFetch(domain:browsermcp.io)",
+      "mcp__browser-tools-mcp__getConsoleErrors",
+      "mcp__browser-tools-mcp__getNetworkLogs",
+      "mcp__browser-tools-mcp__takeScreenshot",
+      "mcp__browser-tools-mcp__getConsoleLogs",
+      "mcp__browser-tools-mcp__wipeLogs",
+      "mcp__browser-tools-mcp__getNetworkErrors"
     ],
     "deny": []
-  }
+  },
+  "enabledMcpjsonServers": [
+    "browser-tools-mcp",
+    "sequential-thinking"
+  ]
 }

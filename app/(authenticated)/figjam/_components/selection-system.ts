@@ -68,23 +68,47 @@ export class SelectionSystem {
       ...texts.map(t => ({ ...t, objectType: 'text' as const }))
     ].sort((a, b) => (b.zIndex || 0) - (a.zIndex || 0));
 
+    console.log('findObjectAtPoint:', { 
+      point, 
+      totalObjects: allObjects.length,
+      paths: paths.length,
+      shapes: shapes.length,
+      texts: texts.length,
+      allObjectsDetails: allObjects.map(obj => ({ id: obj.id, type: obj.objectType, hasStartPoint: 'startPoint' in obj }))
+    });
+
     // Find the top-most object at the point
     for (const obj of allObjects) {
+      console.log('Checking object:', { 
+        id: obj.id, 
+        type: obj.objectType,
+        hasStartPoint: 'startPoint' in obj,
+        hasPoints: 'points' in obj,
+        hasPosition: 'position' in obj
+      });
+      
       let isHit = false;
       
       if (obj.objectType === 'path') {
+        console.log('Testing path hit detection for:', obj.id);
         isHit = isPointInPath(point, obj as DrawingPath);
       } else if (obj.objectType === 'shape') {
+        console.log('Testing shape hit detection for:', obj.id);
         isHit = isPointInShape(point, obj as Shape);
       } else if (obj.objectType === 'text') {
+        console.log('Testing text hit detection for:', obj.id);
         isHit = isPointInText(point, obj as TextElement);
       }
 
+      console.log('Hit detection result for', obj.id, ':', isHit);
+
       if (isHit) {
+        console.log('Found object at point:', obj.id, obj.objectType);
         return obj.id;
       }
     }
 
+    console.log('No object found at point');
     return null;
   }
 
@@ -96,22 +120,32 @@ export class SelectionSystem {
     isCtrlPressed: boolean = false
   ): string | null {
     const clickedObjectId = this.findObjectAtPoint(point, paths, shapes, texts);
+    console.log('SelectionSystem.handleClick:', { 
+      clickedObjectId, 
+      isCtrlPressed, 
+      currentSelection: this.selectedObjects 
+    });
 
     if (clickedObjectId) {
       if (isCtrlPressed) {
         // Toggle selection
         if (this.isSelected(clickedObjectId)) {
+          console.log('Removing from selection:', clickedObjectId);
           this.removeFromSelection(clickedObjectId);
         } else {
+          console.log('Adding to selection:', clickedObjectId);
           this.addToSelection(clickedObjectId);
         }
       } else {
         // Single selection
+        console.log('Single selection:', clickedObjectId);
         this.setSelectedObjects([clickedObjectId]);
       }
+      console.log('New selection:', this.selectedObjects);
       return clickedObjectId;
     } else if (!isCtrlPressed) {
       // Clicked on empty space, clear selection
+      console.log('Clearing selection');
       this.clearSelection();
     }
 

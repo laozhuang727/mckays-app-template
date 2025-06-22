@@ -6,9 +6,6 @@ import { customers } from "./schema/customers"
 config({ path: ".env.local" })
 
 const databaseUrl = process.env.DATABASE_URL
-if (!databaseUrl) {
-  throw new Error("DATABASE_URL is not set")
-}
 
 const dbSchema = {
   // tables
@@ -21,4 +18,12 @@ function initializeDb(url: string) {
   return drizzlePostgres(client, { schema: dbSchema })
 }
 
-export const db = initializeDb(databaseUrl)
+// Only initialize database if we have a valid URL
+export const db = (databaseUrl && !databaseUrl.includes('your_database_url_here')) 
+  ? initializeDb(databaseUrl)
+  : null
+
+// Helper function to check if database is available
+export const isDatabaseAvailable = () => {
+  return db !== null
+}

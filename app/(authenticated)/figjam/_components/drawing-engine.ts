@@ -304,14 +304,32 @@ export class DrawingEngine {
       this.drawPreviewShape(currentShape);
     }
 
-    // Draw selection boxes
-    selectedObjects.forEach(id => {
-      const obj = [...paths, ...shapes, ...texts].find(o => o.id === id);
-      if (obj) {
-        const bounds = getBounds(obj);
-        this.drawSelectionBox(bounds);
+    // Draw selection box for all selected objects
+    if (selectedObjects.length > 0) {
+      const selectedObjs = [
+        ...paths.filter(p => selectedObjects.includes(p.id)),
+        ...shapes.filter(s => selectedObjects.includes(s.id)),
+        ...texts.filter(t => selectedObjects.includes(t.id))
+      ];
+
+      if (selectedObjs.length > 0) {
+        const bounds = selectedObjs.map(obj => getBounds(obj));
+        
+        const minX = Math.min(...bounds.map(b => b.x));
+        const minY = Math.min(...bounds.map(b => b.y));
+        const maxX = Math.max(...bounds.map(b => b.x + b.width));
+        const maxY = Math.max(...bounds.map(b => b.y + b.height));
+
+        const selectionBounds = {
+          x: minX,
+          y: minY,
+          width: maxX - minX,
+          height: maxY - minY
+        };
+
+        this.drawSelectionBox(selectionBounds);
       }
-    });
+    }
 
     // Draw text editor
     if (editingText) {

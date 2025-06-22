@@ -1,5 +1,4 @@
-// Temporarily disabled ClerkProvider to allow development without authentication setup
-// import { ClerkProvider } from '@clerk/nextjs'
+import { ClerkProvider } from '@clerk/nextjs'
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { TailwindIndicator } from "@/components/utility/tailwind-indicator"
 import type { Metadata } from "next"
@@ -33,13 +32,15 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
-          <TooltipProvider>
-            {children}
-            <TailwindIndicator />
-            <Toaster />
-          </TooltipProvider>
-        </ThemeProvider>
+        <ClerkProvider>
+          <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
+            <TooltipProvider>
+              {children}
+              <TailwindIndicator />
+              <Toaster />
+            </TooltipProvider>
+          </ThemeProvider>
+        </ClerkProvider>
       </body>
     </html>
   )

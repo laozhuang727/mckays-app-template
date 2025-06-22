@@ -37,11 +37,15 @@ export const getBounds = (obj: DrawingPath | Shape | TextElement): { x: number; 
     const minY = Math.min(obj.startPoint.y, obj.endPoint.y);
     const maxY = Math.max(obj.startPoint.y, obj.endPoint.y);
     
+    // Ensure minimum size for click detection
+    const width = Math.max(maxX - minX, 10);
+    const height = Math.max(maxY - minY, 10);
+    
     return {
       x: minX,
       y: minY,
-      width: maxX - minX,
-      height: maxY - minY
+      width: width,
+      height: height
     };
   } else {
     // TextElement
@@ -77,10 +81,29 @@ export const isPointInPath = (point: Point, path: DrawingPath): boolean => {
 
 export const isPointInShape = (point: Point, shape: Shape): boolean => {
   const bounds = getBounds(shape);
-  return point.x >= bounds.x &&
-         point.x <= bounds.x + bounds.width &&
-         point.y >= bounds.y &&
-         point.y <= bounds.y + bounds.height;
+  
+  // Expand click area for easier selection
+  const expandedBounds = {
+    x: bounds.x - 10,
+    y: bounds.y - 10,
+    width: bounds.width + 20,
+    height: bounds.height + 20
+  };
+  
+  const isHit = point.x >= expandedBounds.x && 
+                point.x <= expandedBounds.x + expandedBounds.width && 
+                point.y >= expandedBounds.y && 
+                point.y <= expandedBounds.y + expandedBounds.height;
+  
+  console.log('isPointInShape EXPANDED check:', { 
+    clickPoint: { x: point.x, y: point.y },
+    originalBounds: bounds,
+    expandedBounds: expandedBounds,
+    shapeId: shape.id,
+    isHit: isHit
+  });
+  
+  return isHit;
 };
 
 export const isPointInText = (point: Point, text: TextElement): boolean => {

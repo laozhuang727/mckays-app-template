@@ -1,6 +1,6 @@
 "use server"
 
-import { db } from "@/db"
+import { db, isDatabaseAvailable } from "@/db"
 import { customers, type SelectCustomer } from "@/db/schema/customers"
 import { currentUser } from "@clerk/nextjs/server"
 import { eq } from "drizzle-orm"
@@ -8,11 +8,20 @@ import { eq } from "drizzle-orm"
 export async function getCustomerByUserId(
   userId: string
 ): Promise<SelectCustomer | null> {
-  const customer = await db.query.customers.findFirst({
-    where: eq(customers.userId, userId)
-  })
+  if (!isDatabaseAvailable() || !db) {
+    return null
+  }
 
-  return customer || null
+  try {
+    const customer = await db.query.customers.findFirst({
+      where: eq(customers.userId, userId)
+    })
+
+    return customer || null
+  } catch (error) {
+    console.error("Error getting customer by userId:", error)
+    return null
+  }
 }
 
 export async function getBillingDataByUserId(userId: string): Promise<{
@@ -23,10 +32,18 @@ export async function getBillingDataByUserId(userId: string): Promise<{
   // Get Clerk user data
   const user = await currentUser()
 
-  // Get profile to fetch Stripe customer ID
-  const customer = await db.query.customers.findFirst({
-    where: eq(customers.userId, userId)
-  })
+  let customer: SelectCustomer | null = null
+
+  if (isDatabaseAvailable() && db) {
+    try {
+      // Get profile to fetch Stripe customer ID
+      customer = await db.query.customers.findFirst({
+        where: eq(customers.userId, userId)
+      }) || null
+    } catch (error) {
+      console.error("Error getting billing data:", error)
+    }
+  }
 
   // Get Stripe email if it exists
   const stripeEmail = customer?.stripeCustomerId
@@ -43,6 +60,11 @@ export async function getBillingDataByUserId(userId: string): Promise<{
 export async function createCustomer(
   userId: string
 ): Promise<{ isSuccess: boolean; data?: SelectCustomer }> {
+  if (!isDatabaseAvailable() || !db) {
+    console.warn("Database not available, cannot create customer")
+    return { isSuccess: false }
+  }
+
   try {
     const [newCustomer] = await db
       .insert(customers)
@@ -67,6 +89,11 @@ export async function updateCustomerByUserId(
   userId: string,
   updates: Partial<SelectCustomer>
 ): Promise<{ isSuccess: boolean; data?: SelectCustomer }> {
+  if (!isDatabaseAvailable() || !db) {
+    console.warn("Database not available, cannot update customer")
+    return { isSuccess: false }
+  }
+
   try {
     const [updatedCustomer] = await db
       .update(customers)
@@ -89,6 +116,11 @@ export async function updateCustomerByStripeCustomerId(
   stripeCustomerId: string,
   updates: Partial<SelectCustomer>
 ): Promise<{ isSuccess: boolean; data?: SelectCustomer }> {
+  if (!isDatabaseAvailable() || !db) {
+    console.warn("Database not available, cannot update customer")
+    return { isSuccess: false }
+  }
+
   try {
     const [updatedCustomer] = await db
       .update(customers)

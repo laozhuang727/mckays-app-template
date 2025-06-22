@@ -6,6 +6,11 @@ import { customers } from "../schema/customers"
 import { customersData } from "./data/customers"
 
 async function seed() {
+  if (!db) {
+    console.error("Database not available for seeding")
+    process.exit(1)
+  }
+
   console.warn("Seeding database...")
 
   // Reset all tables in reverse order of dependencies

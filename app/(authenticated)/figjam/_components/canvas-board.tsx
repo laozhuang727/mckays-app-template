@@ -40,6 +40,15 @@ export function CanvasBoard({ boardId }: CanvasBoardProps) {
   const [currentPath, setCurrentPath] = useState<Point[]>([]);
   const [currentShape, setCurrentShape] = useState<Partial<Shape> | null>(null);
   
+  // Drag state
+  const [dragStart, setDragStart] = useState<Point | null>(null);
+  const [resizeHandle, setResizeHandle] = useState<string | null>(null);
+  const [initialBounds, setInitialBounds] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
+  const [initialObjects, setInitialObjects] = useState<{ paths: DrawingPath[]; shapes: Shape[]; texts: TextElement[] } | null>(null);
+  
+  // Clipboard state
+  const [clipboard, setClipboard] = useState<(DrawingPath | Shape | TextElement)[]>([]);
+  
   // Text editing state
   const [editingText, setEditingText] = useState<{ id: string; position: Point } | null>(null);
   const [textInput, setTextInput] = useState("");
@@ -56,6 +65,11 @@ export function CanvasBoard({ boardId }: CanvasBoardProps) {
   
   // Selection and interaction state
   const [selectedObjects, setSelectedObjects] = useState<string[]>([]);
+  
+  // Debug selection changes
+  useEffect(() => {
+    console.log('Canvas selectedObjects changed:', selectedObjects);
+  }, [selectedObjects]);
   const [isDragging, setIsDragging] = useState(false);
   const [cursorStyle, setCursorStyle] = useState<string>("default");
   
@@ -87,7 +101,8 @@ export function CanvasBoard({ boardId }: CanvasBoardProps) {
 
     const handleResize = () => {
       const newCtx = setupCanvas(canvas);
-      engine.constructor.prototype.constructor.call(engine, newCtx, viewport);
+      const newEngine = new DrawingEngine(newCtx, viewport);
+      setDrawingEngine(newEngine);
       redraw();
     };
 
@@ -145,16 +160,33 @@ export function CanvasBoard({ boardId }: CanvasBoardProps) {
     const canvasPoint = screenToCanvas(screenPoint, viewport);
 
     if (currentTool === "select") {
-      const clickedObject = selectionSystem.handleClick(
-        canvasPoint, 
-        paths, 
-        shapes, 
-        texts, 
-        e.ctrlKey
-      );
+      // Check if clicking on a resize handle first
+      const handle = selectionSystem.getHandleAtPoint(canvasPoint, paths, shapes, texts);
       
-      if (clickedObject && !e.ctrlKey) {
+      if (handle) {
+        setResizeHandle(handle);
+        setDragStart(canvasPoint);
         setIsDragging(true);
+        
+        // Store initial bounds and objects for resizing
+        const bounds = selectionSystem.getSelectionBounds(paths, shapes, texts);
+        setInitialBounds(bounds);
+        setInitialObjects({ paths: [...paths], shapes: [...shapes], texts: [...texts] });
+      } else {
+        console.log('Mouse click:', { ctrlKey: e.ctrlKey, metaKey: e.metaKey, point: canvasPoint });
+        const clickedObject = selectionSystem.handleClick(
+          canvasPoint, 
+          paths, 
+          shapes, 
+          texts, 
+          e.ctrlKey || e.metaKey
+        );
+        
+        // Only start dragging if we clicked on an object and not holding Ctrl/Cmd
+        if (clickedObject && !e.ctrlKey && !e.metaKey) {
+          setIsDragging(true);
+          setDragStart(canvasPoint);
+        }
       }
     } else if (currentTool === "pen") {
       setIsDrawing(true);
@@ -187,11 +219,190 @@ export function CanvasBoard({ boardId }: CanvasBoardProps) {
       setCurrentPath(prev => [...prev, canvasPoint]);
     } else if (isDrawing && currentShape) {
       setCurrentShape(prev => prev ? { ...prev, endPoint: canvasPoint } : null);
+    } else if (isDragging && dragStart && currentTool === "select") {
+      if (resizeHandle && initialBounds && initialObjects && dragStart) {
+        // Handle resizing
+        const deltaX = canvasPoint.x - dragStart.x;
+        const deltaY = canvasPoint.y - dragStart.y;
+        
+        let newBounds = { ...initialBounds };
+        
+        // Calculate new bounds based on handle
+        switch (resizeHandle) {
+          case 'top-left':
+            newBounds.x += deltaX;
+            newBounds.y += deltaY;
+            newBounds.width -= deltaX;
+            newBounds.height -= deltaY;
+            break;
+          case 'top-center':
+            newBounds.y += deltaY;
+            newBounds.height -= deltaY;
+            break;
+          case 'top-right':
+            newBounds.y += deltaY;
+            newBounds.width += deltaX;
+            newBounds.height -= deltaY;
+            break;
+          case 'middle-left':
+            newBounds.x += deltaX;
+            newBounds.width -= deltaX;
+            break;
+          case 'middle-right':
+            newBounds.width += deltaX;
+            break;
+          case 'bottom-left':
+            newBounds.x += deltaX;
+            newBounds.width -= deltaX;
+            newBounds.height += deltaY;
+            break;
+          case 'bottom-center':
+            newBounds.height += deltaY;
+            break;
+          case 'bottom-right':
+            newBounds.width += deltaX;
+            newBounds.height += deltaY;
+            break;
+        }
+        
+        // Apply scaling to selected objects
+        if (newBounds.width > 10 && newBounds.height > 10) {
+          const scaleX = newBounds.width / initialBounds.width;
+          const scaleY = newBounds.height / initialBounds.height;
+          
+          // Scale shapes
+          setShapes(prevShapes => 
+            prevShapes.map(shape => {
+              if (selectedObjects.includes(shape.id)) {
+                const originalShape = initialObjects.shapes.find(s => s.id === shape.id);
+                if (!originalShape) return shape;
+                
+                const relStartX = (originalShape.startPoint.x - initialBounds.x) / initialBounds.width;
+                const relStartY = (originalShape.startPoint.y - initialBounds.y) / initialBounds.height;
+                const relEndX = (originalShape.endPoint.x - initialBounds.x) / initialBounds.width;
+                const relEndY = (originalShape.endPoint.y - initialBounds.y) / initialBounds.height;
+                
+                return {
+                  ...shape,
+                  startPoint: {
+                    x: newBounds.x + relStartX * newBounds.width,
+                    y: newBounds.y + relStartY * newBounds.height
+                  },
+                  endPoint: {
+                    x: newBounds.x + relEndX * newBounds.width,
+                    y: newBounds.y + relEndY * newBounds.height
+                  }
+                };
+              }
+              return shape;
+            })
+          );
+          
+          // Scale text positions
+          setTexts(prevTexts => 
+            prevTexts.map(text => {
+              if (selectedObjects.includes(text.id)) {
+                const originalText = initialObjects.texts.find(t => t.id === text.id);
+                if (!originalText) return text;
+                
+                const relX = (originalText.position.x - initialBounds.x) / initialBounds.width;
+                const relY = (originalText.position.y - initialBounds.y) / initialBounds.height;
+                
+                return {
+                  ...text,
+                  position: {
+                    x: newBounds.x + relX * newBounds.width,
+                    y: newBounds.y + relY * newBounds.height
+                  },
+                  fontSize: originalText.fontSize * Math.min(scaleX, scaleY)
+                };
+              }
+              return text;
+            })
+          );
+          
+          // Scale paths
+          setPaths(prevPaths => 
+            prevPaths.map(path => {
+              if (selectedObjects.includes(path.id)) {
+                const originalPath = initialObjects.paths.find(p => p.id === path.id);
+                if (!originalPath) return path;
+                
+                return {
+                  ...path,
+                  points: originalPath.points.map(point => {
+                    const relX = (point.x - initialBounds.x) / initialBounds.width;
+                    const relY = (point.y - initialBounds.y) / initialBounds.height;
+                    
+                    return {
+                      x: newBounds.x + relX * newBounds.width,
+                      y: newBounds.y + relY * newBounds.height
+                    };
+                  })
+                };
+              }
+              return path;
+            })
+          );
+        }
+      } else {
+        // Handle object dragging
+        const deltaX = canvasPoint.x - dragStart.x;
+        const deltaY = canvasPoint.y - dragStart.y;
+        
+        if (Math.abs(deltaX) > 2 || Math.abs(deltaY) > 2) {
+          // Move selected objects
+          setPaths(prevPaths => 
+            prevPaths.map(path => 
+              selectedObjects.includes(path.id) 
+                ? { ...path, points: path.points.map(p => ({ x: p.x + deltaX, y: p.y + deltaY })) }
+                : path
+            )
+          );
+          
+          setShapes(prevShapes => 
+            prevShapes.map(shape => 
+              selectedObjects.includes(shape.id) 
+                ? { 
+                    ...shape, 
+                    startPoint: { x: shape.startPoint.x + deltaX, y: shape.startPoint.y + deltaY },
+                    endPoint: { x: shape.endPoint.x + deltaX, y: shape.endPoint.y + deltaY }
+                  }
+                : shape
+            )
+          );
+          
+          setTexts(prevTexts => 
+            prevTexts.map(text => 
+              selectedObjects.includes(text.id) 
+                ? { ...text, position: { x: text.position.x + deltaX, y: text.position.y + deltaY } }
+                : text
+            )
+          );
+          
+          setDragStart(canvasPoint);
+        }
+      }
     } else if (currentTool === "select") {
       const cursor = selectionSystem.getCursorForPoint(canvasPoint, paths, shapes, texts);
       setCursorStyle(cursor);
     }
-  }, [isDrawing, currentTool, currentShape, viewport, paths, shapes, texts, selectionSystem]);
+  }, [
+    isDrawing, 
+    currentTool, 
+    currentShape, 
+    viewport, 
+    paths, 
+    shapes, 
+    texts, 
+    selectionSystem, 
+    isDragging, 
+    dragStart, 
+    selectedObjects, 
+    resizeHandle, 
+    initialBounds, 
+    initialObjects
+  ]);
 
   const handleMouseUp = useCallback(() => {
     if (isDrawing && currentTool === "pen" && currentPath.length > 1) {
@@ -225,6 +436,10 @@ export function CanvasBoard({ boardId }: CanvasBoardProps) {
 
     setIsDrawing(false);
     setIsDragging(false);
+    setDragStart(null);
+    setResizeHandle(null);
+    setInitialBounds(null);
+    setInitialObjects(null);
   }, [isDrawing, currentTool, currentPath, currentShape, strokeColor, strokeWidth, fillColor, paths, shapes, commandSystem]);
 
   // Complete text input
@@ -279,7 +494,49 @@ export function CanvasBoard({ boardId }: CanvasBoardProps) {
           selectionSystem.selectAll(paths, shapes, texts);
         } else if (e.key === 'c') {
           e.preventDefault();
-          // Copy functionality would go here
+          const copied = selectionSystem.copySelected(paths, shapes, texts);
+          setClipboard(copied);
+        } else if (e.key === 'v') {
+          e.preventDefault();
+          if (clipboard.length > 0) {
+            const newIds: string[] = [];
+            
+            clipboard.forEach(obj => {
+              let objType = 'unknown';
+              if ('points' in obj) objType = 'path';
+              else if ('startPoint' in obj) objType = 'shape';
+              else objType = 'text';
+              
+              const newId = `${objType}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+              newIds.push(newId);
+
+              if ('points' in obj) {
+                const newPath: DrawingPath = {
+                  ...obj,
+                  id: newId,
+                  points: obj.points.map(p => ({ x: p.x + 20, y: p.y + 20 }))
+                };
+                setPaths(prev => [...prev, newPath]);
+              } else if ('startPoint' in obj) {
+                const newShape: Shape = {
+                  ...obj,
+                  id: newId,
+                  startPoint: { x: obj.startPoint.x + 20, y: obj.startPoint.y + 20 },
+                  endPoint: { x: obj.endPoint.x + 20, y: obj.endPoint.y + 20 }
+                };
+                setShapes(prev => [...prev, newShape]);
+              } else {
+                const newText: TextElement = {
+                  ...obj,
+                  id: newId,
+                  position: { x: obj.position.x + 20, y: obj.position.y + 20 }
+                };
+                setTexts(prev => [...prev, newText]);
+              }
+            });
+            
+            selectionSystem.setSelectedObjects(newIds);
+          }
         } else if (e.key === 'd') {
           e.preventDefault();
           selectionSystem.duplicateSelected(paths, shapes, texts, setPaths, setShapes, setTexts);
@@ -345,6 +602,11 @@ export function CanvasBoard({ boardId }: CanvasBoardProps) {
           {/* Tools */}
           <div>
             <h3 className="text-sm font-medium text-gray-700 mb-2">工具</h3>
+            {currentTool === "select" && (
+              <div className="text-xs text-gray-500 mb-2 p-2 bg-blue-50 rounded">
+                💡 按住 Ctrl/Cmd + 点击可多选对象
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-2">
               {[
                 { tool: "select" as ToolType, icon: MousePointer2, label: "选择 (1)" },
@@ -368,9 +630,9 @@ export function CanvasBoard({ boardId }: CanvasBoardProps) {
             </div>
           </div>
 
-          {/* Colors */}
+          {/* Stroke Colors */}
           <div>
-            <h3 className="text-sm font-medium text-gray-700 mb-2">颜色</h3>
+            <h3 className="text-sm font-medium text-gray-700 mb-2">描边颜色</h3>
             <div className="grid grid-cols-4 gap-2">
               {colors.map(color => (
                 <Button
@@ -385,6 +647,33 @@ export function CanvasBoard({ boardId }: CanvasBoardProps) {
               ))}
             </div>
           </div>
+
+          {/* Fill Colors */}
+          {(currentTool === "rectangle" || currentTool === "circle") && (
+            <div>
+              <h3 className="text-sm font-medium text-gray-700 mb-2">填充颜色</h3>
+              <div className="grid grid-cols-4 gap-2 mb-2">
+                {colors.map(color => (
+                  <Button
+                    key={color}
+                    className="w-8 h-8 p-0 rounded border-2"
+                    style={{ 
+                      backgroundColor: color,
+                      borderColor: fillColor === color ? '#000' : '#ccc'
+                    }}
+                    onClick={() => setFillColor(color)}
+                  />
+                ))}
+              </div>
+              <Button
+                className="w-full text-xs"
+                variant={fillColor === "transparent" ? "default" : "outline"}
+                onClick={() => setFillColor("transparent")}
+              >
+                无填充
+              </Button>
+            </div>
+          )}
 
           {/* Stroke Width */}
           <div>
