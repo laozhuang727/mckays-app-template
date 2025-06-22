@@ -1,15 +1,17 @@
 import { CanvasBoard } from "../_components/canvas-board";
 
 interface FigJamBoardPageProps {
-  params: {
+  params: Promise<{
     boardId: string;
-  };
+  }>;
 }
 
-export default function FigJamBoardPage({ params }: FigJamBoardPageProps) {
+export default async function FigJamBoardPage({ params }: FigJamBoardPageProps) {
+  const { boardId } = await params;
+  
   return (
     <div className="h-screen w-full overflow-hidden bg-gray-50">
-      <CanvasBoard boardId={params.boardId} />
+      <CanvasBoard boardId={boardId} />
     </div>
   );
 }

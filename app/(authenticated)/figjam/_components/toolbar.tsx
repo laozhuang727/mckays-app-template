@@ -12,7 +12,7 @@ import {
   Palette
 } from "lucide-react";
 
-const tools: Array<{ type: ToolType; icon: React.ComponentType; label: string }> = [
+const tools: Array<{ type: ToolType; icon: React.ComponentType<{ className?: string }>; label: string }> = [
   { type: "select", icon: MousePointer2, label: "Select" },
   { type: "pen", icon: Pen, label: "Pen" },
   { type: "rectangle", icon: Square, label: "Rectangle" },
