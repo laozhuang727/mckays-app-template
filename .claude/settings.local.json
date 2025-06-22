@@ -13,7 +13,10 @@
       "Bash(ls:*)",
       "Bash(git checkout:*)",
       "Bash(git add:*)",
-      "Bash(rg:*)"
+      "Bash(rg:*)",
+      "Bash(cp:*)",
+      "Bash(wc:*)",
+      "Bash(curl:*)"
     ],
     "deny": []
   }

@@ -1,10 +1,19 @@
-import { NextResponse } from "next/server"
-import type { NextRequest } from "next/server"
+// Temporarily disabled Clerk middleware to allow development without authentication setup
+// import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server'
 
-// Temporarily disable Clerk authentication for FigJam development
+// const isProtectedRoute = createRouteMatcher([
+//   '/dashboard(.*)',
+//   '/figjam(.*)',
+// ])
+
+// export default clerkMiddleware(async (auth, req) => {
+//   if (isProtectedRoute(req)) await auth.protect()
+// })
+
+import { NextResponse } from 'next/server'
+import type { NextRequest } from 'next/server'
+
 export function middleware(request: NextRequest) {
-  // Allow all requests to pass through for now
-  // We'll re-enable authentication later
   return NextResponse.next()
 }
 

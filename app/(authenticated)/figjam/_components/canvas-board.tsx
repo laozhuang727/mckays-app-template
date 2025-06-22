@@ -11,309 +11,223 @@ import {
   Eraser 
 } from "lucide-react";
 
-interface CanvasBoardProps {
-  boardId: string;
-}
-
-type ToolType = "select" | "pen" | "rectangle" | "circle" | "text" | "eraser";
-
-interface Point {
-  x: number;
-  y: number;
-}
-
-interface DrawingPath {
-  id: string;
-  points: Point[];
-  color: string;
-  width: number;
-  rotation?: number;
-  zIndex?: number;
-}
-
-interface Shape {
-  id: string;
-  type: "rectangle" | "circle";
-  startPoint: Point;
-  endPoint: Point;
-  color: string;
-  width: number;
-  fillColor?: string;
-  rotation?: number;
-  zIndex?: number;
-}
-
-interface TextElement {
-  id: string;
-  type: "text";
-  position: Point;
-  content: string;
-  fontSize: number;
-  fontFamily: string;
-  color: string;
-  rotation?: number;
-  zIndex?: number;
-}
-
-interface DrawableObject {
-  id: string;
-  type: "path" | "rectangle" | "circle" | "text";
-  bounds: {
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-  };
-}
-
-interface CanvasState {
-  paths: DrawingPath[];
-  shapes: Shape[];
-  texts: TextElement[];
-}
-
-interface Command {
-  execute: () => void;
-  undo: () => void;
-  description: string;
-}
+// Import our modular components
+import { 
+  ToolType, 
+  Point, 
+  DrawingPath, 
+  Shape, 
+  TextElement, 
+  CanvasBoardProps, 
+  Viewport 
+} from './types';
+import { screenToCanvas, setupCanvas } from './canvas-utils';
+import { DrawingEngine } from './drawing-engine';
+import { CommandSystem, createAddPathCommand, createAddShapeCommand, createAddTextCommand } from './command-system';
+import { SelectionSystem } from './selection-system';
 
 export function CanvasBoard({ boardId }: CanvasBoardProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  
+  // Core state
   const [currentTool, setCurrentTool] = useState<ToolType>("pen");
   const [isDrawing, setIsDrawing] = useState(false);
   const [paths, setPaths] = useState<DrawingPath[]>([]);
   const [shapes, setShapes] = useState<Shape[]>([]);
   const [texts, setTexts] = useState<TextElement[]>([]);
+  
+  // Drawing state
   const [currentPath, setCurrentPath] = useState<Point[]>([]);
   const [currentShape, setCurrentShape] = useState<Partial<Shape> | null>(null);
+  
+  // Text editing state
   const [editingText, setEditingText] = useState<{ id: string; position: Point } | null>(null);
   const [textInput, setTextInput] = useState("");
+  
+  // Style state
   const [fontSize, setFontSize] = useState(16);
+  const [fontFamily, setFontFamily] = useState("Arial, sans-serif");
+  const [fontWeight, setFontWeight] = useState<"normal" | "bold">("normal");
+  const [fontStyle, setFontStyle] = useState<"normal" | "italic">("normal");
+  const [textAlign, setTextAlign] = useState<"left" | "center" | "right">("left");
   const [strokeColor, setStrokeColor] = useState("#000000");
   const [strokeWidth, setStrokeWidth] = useState(2);
   const [fillColor, setFillColor] = useState("transparent");
+  
+  // Selection and interaction state
   const [selectedObjects, setSelectedObjects] = useState<string[]>([]);
   const [isDragging, setIsDragging] = useState(false);
-  const [dragStart, setDragStart] = useState<Point | null>(null);
-  const [dragOffset, setDragOffset] = useState<Point>({ x: 0, y: 0 });
-  const [isResizing, setIsResizing] = useState(false);
-  const [resizeHandle, setResizeHandle] = useState<string | null>(null);
-  const [resizeStart, setResizeStart] = useState<{ point: Point; bounds: any } | null>(null);
-  const [isRotating, setIsRotating] = useState(false);
-  const [rotationStart, setRotationStart] = useState<{ point: Point; center: Point; initialRotation: number } | null>(null);
   const [cursorStyle, setCursorStyle] = useState<string>("default");
-  const [clipboard, setClipboard] = useState<(DrawingPath | Shape | TextElement)[]>([]);
-  const [history, setHistory] = useState<Command[]>([]);
-  const [historyIndex, setHistoryIndex] = useState(-1);
   
-  const [viewport, setViewport] = useState({
+  // Viewport state
+  const [viewport, setViewport] = useState<Viewport>({
     offsetX: 0,
     offsetY: 0,
     scale: 1
   });
+
+  // System instances
+  const [drawingEngine, setDrawingEngine] = useState<DrawingEngine | null>(null);
+  const [commandSystem] = useState(new CommandSystem());
+  const [selectionSystem] = useState(new SelectionSystem(setSelectedObjects));
 
   const colors = [
     "#000000", "#ff0000", "#00ff00", "#0000ff", 
     "#ffff00", "#ff00ff", "#00ffff", "#ffa500"
   ];
 
-  // Helper function to execute a command and add it to history
-  const executeCommand = useCallback((command: Command) => {
-    command.execute();
-    
-    // Remove any commands after the current index (for branching undo/redo)
-    const newHistory = history.slice(0, historyIndex + 1);
-    newHistory.push(command);
-    
-    // Limit history size to prevent memory issues
-    const MAX_HISTORY = 50;
-    if (newHistory.length > MAX_HISTORY) {
-      newHistory.shift();
-    } else {
-      setHistoryIndex(prev => prev + 1);
-    }
-    
-    setHistory(newHistory);
-  }, [history, historyIndex]);
+  // Initialize canvas and drawing engine
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
 
-  // Helper function to calculate bounding box for objects
-  const getBounds = useCallback((obj: DrawingPath | Shape | TextElement): { x: number; y: number; width: number; height: number } => {
-    if ('points' in obj) {
-      // Path object
-      if (obj.points.length === 0) return { x: 0, y: 0, width: 0, height: 0 };
-      
-      const xs = obj.points.map(p => p.x);
-      const ys = obj.points.map(p => p.y);
-      const minX = Math.min(...xs);
-      const maxX = Math.max(...xs);
-      const minY = Math.min(...ys);
-      const maxY = Math.max(...ys);
-      
-      return {
-        x: minX - obj.width / 2,
-        y: minY - obj.width / 2,
-        width: maxX - minX + obj.width,
-        height: maxY - minY + obj.width
-      };
-    } else if ('content' in obj) {
-      // Text object
-      const canvas = canvasRef.current;
-      if (!canvas) return { x: obj.position.x, y: obj.position.y, width: 100, height: obj.fontSize };
-      
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return { x: obj.position.x, y: obj.position.y, width: 100, height: obj.fontSize };
-      
-      ctx.font = `${obj.fontSize}px ${obj.fontFamily}`;
-      const metrics = ctx.measureText(obj.content);
-      const width = metrics.width;
-      const height = obj.fontSize;
-      
-      return {
-        x: obj.position.x,
-        y: obj.position.y - height,
-        width,
-        height
-      };
-    } else {
-      // Shape object
-      const minX = Math.min(obj.startPoint.x, obj.endPoint.x);
-      const minY = Math.min(obj.startPoint.y, obj.endPoint.y);
-      const width = Math.abs(obj.endPoint.x - obj.startPoint.x);
-      const height = Math.abs(obj.endPoint.y - obj.startPoint.y);
-      
-      return { x: minX, y: minY, width, height };
-    }
-  }, []);
+    const ctx = setupCanvas(canvas);
+    const engine = new DrawingEngine(ctx, viewport);
+    setDrawingEngine(engine);
 
-  // Helper function to check if a point is inside an object
-  const isPointInObject = useCallback((point: Point, obj: DrawingPath | Shape | TextElement): boolean => {
-    const bounds = getBounds(obj);
-    return point.x >= bounds.x && 
-           point.x <= bounds.x + bounds.width && 
-           point.y >= bounds.y && 
-           point.y <= bounds.y + bounds.height;
-  }, [getBounds]);
-
-  // Helper function to move an object by offset
-  const moveObject = useCallback((obj: DrawingPath | Shape | TextElement, offset: Point): DrawingPath | Shape | TextElement => {
-    if ('points' in obj) {
-      // Move path
-      return {
-        ...obj,
-        points: obj.points.map(p => ({ x: p.x + offset.x, y: p.y + offset.y }))
-      };
-    } else if ('content' in obj) {
-      // Move text
-      return {
-        ...obj,
-        position: { x: obj.position.x + offset.x, y: obj.position.y + offset.y }
-      };
-    } else {
-      // Move shape
-      return {
-        ...obj,
-        startPoint: { x: obj.startPoint.x + offset.x, y: obj.startPoint.y + offset.y },
-        endPoint: { x: obj.endPoint.x + offset.x, y: obj.endPoint.y + offset.y }
-      };
-    }
-  }, []);
-
-  // Helper function to check if point is on a resize handle or rotation handle
-  const getResizeHandle = useCallback((point: Point, bounds: any): string | null => {
-    const handleSize = 8 / viewport.scale;
-    const tolerance = handleSize / 2;
-    const rotationHandleDistance = 20 / viewport.scale; // Distance of rotation handle from object
-    
-    const handles = [
-      { name: 'nw', x: bounds.x, y: bounds.y },
-      { name: 'ne', x: bounds.x + bounds.width, y: bounds.y },
-      { name: 'sw', x: bounds.x, y: bounds.y + bounds.height },
-      { name: 'se', x: bounds.x + bounds.width, y: bounds.y + bounds.height },
-      { name: 'n', x: bounds.x + bounds.width / 2, y: bounds.y },
-      { name: 's', x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height },
-      { name: 'w', x: bounds.x, y: bounds.y + bounds.height / 2 },
-      { name: 'e', x: bounds.x + bounds.width, y: bounds.y + bounds.height / 2 },
-      { name: 'rotate', x: bounds.x + bounds.width / 2, y: bounds.y - rotationHandleDistance }
-    ];
-    
-    for (const handle of handles) {
-      if (Math.abs(point.x - handle.x) <= tolerance && 
-          Math.abs(point.y - handle.y) <= tolerance) {
-        return handle.name;
-      }
-    }
-    
-    return null;
-  }, [viewport.scale]);
-
-  // Helper function to get cursor style based on resize handle
-  const getCursorStyle = useCallback((handle: string): string => {
-    switch (handle) {
-      case 'nw':
-      case 'se':
-        return 'nw-resize';
-      case 'ne':
-      case 'sw':
-        return 'ne-resize';
-      case 'n':
-      case 's':
-        return 'ns-resize';
-      case 'w':
-      case 'e':
-        return 'ew-resize';
-      case 'rotate':
-        return 'grab';
-      default:
-        return 'default';
-    }
-  }, []);
-
-  // Helper function to resize an object
-  const resizeObject = useCallback((obj: Shape, handle: string, newPoint: Point, originalBounds: any): Shape => {
-    if ('points' in obj) return obj; // Can't resize paths yet
-    
-    let newStartPoint = { ...obj.startPoint };
-    let newEndPoint = { ...obj.endPoint };
-    
-    switch (handle) {
-      case 'nw':
-        newStartPoint = { x: newPoint.x, y: newPoint.y };
-        break;
-      case 'ne':
-        newStartPoint = { x: obj.startPoint.x, y: newPoint.y };
-        newEndPoint = { x: newPoint.x, y: obj.endPoint.y };
-        break;
-      case 'sw':
-        newStartPoint = { x: newPoint.x, y: obj.startPoint.y };
-        newEndPoint = { x: obj.endPoint.x, y: newPoint.y };
-        break;
-      case 'se':
-        newEndPoint = { x: newPoint.x, y: newPoint.y };
-        break;
-      case 'n':
-        newStartPoint = { x: obj.startPoint.x, y: newPoint.y };
-        break;
-      case 's':
-        newEndPoint = { x: obj.endPoint.x, y: newPoint.y };
-        break;
-      case 'w':
-        newStartPoint = { x: newPoint.x, y: obj.startPoint.y };
-        break;
-      case 'e':
-        newEndPoint = { x: newPoint.x, y: obj.endPoint.y };
-        break;
-    }
-    
-    return {
-      ...obj,
-      startPoint: newStartPoint,
-      endPoint: newEndPoint
+    const handleResize = () => {
+      const newCtx = setupCanvas(canvas);
+      engine.constructor.prototype.constructor.call(engine, newCtx, viewport);
+      redraw();
     };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Helper function to rotate an object
-  // Text completion functions
+  // Update drawing engine viewport when viewport changes
+  useEffect(() => {
+    if (drawingEngine) {
+      drawingEngine.updateViewport(viewport);
+      redraw();
+    }
+  }, [viewport, drawingEngine]);
+
+  // Redraw canvas
+  const redraw = useCallback(() => {
+    if (!drawingEngine || !canvasRef.current) return;
+
+    const canvas = canvasRef.current;
+    drawingEngine.renderAll(
+      paths,
+      shapes,
+      texts,
+      selectedObjects,
+      currentPath,
+      currentShape,
+      editingText,
+      textInput,
+      strokeColor,
+      strokeWidth,
+      fontSize,
+      fontFamily,
+      fontWeight,
+      fontStyle,
+      canvas.width / (window.devicePixelRatio || 1),
+      canvas.height / (window.devicePixelRatio || 1)
+    );
+  }, [
+    drawingEngine, paths, shapes, texts, selectedObjects, currentPath, currentShape,
+    editingText, textInput, strokeColor, strokeWidth, fontSize, fontFamily, fontWeight, fontStyle
+  ]);
+
+  // Redraw when state changes
+  useEffect(() => {
+    redraw();
+  }, [redraw]);
+
+  // Mouse event handlers
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    if (!canvasRef.current) return;
+
+    const rect = canvasRef.current.getBoundingClientRect();
+    const screenPoint = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    const canvasPoint = screenToCanvas(screenPoint, viewport);
+
+    if (currentTool === "select") {
+      const clickedObject = selectionSystem.handleClick(
+        canvasPoint, 
+        paths, 
+        shapes, 
+        texts, 
+        e.ctrlKey
+      );
+      
+      if (clickedObject && !e.ctrlKey) {
+        setIsDragging(true);
+      }
+    } else if (currentTool === "pen") {
+      setIsDrawing(true);
+      setCurrentPath([canvasPoint]);
+    } else if (currentTool === "rectangle" || currentTool === "circle") {
+      setIsDrawing(true);
+      setCurrentShape({
+        type: currentTool,
+        startPoint: canvasPoint,
+        endPoint: canvasPoint,
+        color: strokeColor,
+        width: strokeWidth,
+        fillColor: fillColor
+      });
+    } else if (currentTool === "text") {
+      const textId = `text-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      setEditingText({ id: textId, position: canvasPoint });
+      setTextInput("");
+    }
+  }, [currentTool, viewport, strokeColor, strokeWidth, fillColor, paths, shapes, texts, selectionSystem]);
+
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+    if (!canvasRef.current) return;
+
+    const rect = canvasRef.current.getBoundingClientRect();
+    const screenPoint = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    const canvasPoint = screenToCanvas(screenPoint, viewport);
+
+    if (isDrawing && currentTool === "pen") {
+      setCurrentPath(prev => [...prev, canvasPoint]);
+    } else if (isDrawing && currentShape) {
+      setCurrentShape(prev => prev ? { ...prev, endPoint: canvasPoint } : null);
+    } else if (currentTool === "select") {
+      const cursor = selectionSystem.getCursorForPoint(canvasPoint, paths, shapes, texts);
+      setCursorStyle(cursor);
+    }
+  }, [isDrawing, currentTool, currentShape, viewport, paths, shapes, texts, selectionSystem]);
+
+  const handleMouseUp = useCallback(() => {
+    if (isDrawing && currentTool === "pen" && currentPath.length > 1) {
+      const newPath: DrawingPath = {
+        id: `path-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        points: currentPath,
+        color: strokeColor,
+        width: strokeWidth,
+        zIndex: Math.max(0, ...paths.map(p => p.zIndex || 0)) + 1
+      };
+
+      const command = createAddPathCommand(newPath, paths, setPaths);
+      commandSystem.executeCommand(command);
+      setCurrentPath([]);
+    } else if (isDrawing && currentShape && currentShape.startPoint && currentShape.endPoint) {
+      const newShape: Shape = {
+        id: `shape-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        type: currentShape.type as "rectangle" | "circle",
+        startPoint: currentShape.startPoint,
+        endPoint: currentShape.endPoint,
+        color: strokeColor,
+        width: strokeWidth,
+        fillColor: fillColor,
+        zIndex: Math.max(0, ...shapes.map(s => s.zIndex || 0)) + 1
+      };
+
+      const command = createAddShapeCommand(newShape, shapes, setShapes);
+      commandSystem.executeCommand(command);
+      setCurrentShape(null);
+    }
+
+    setIsDrawing(false);
+    setIsDragging(false);
+  }, [isDrawing, currentTool, currentPath, currentShape, strokeColor, strokeWidth, fillColor, paths, shapes, commandSystem]);
+
+  // Complete text input
   const completeTextInput = useCallback(() => {
     if (editingText && textInput.trim()) {
       const newText: TextElement = {
@@ -321,1118 +235,256 @@ export function CanvasBoard({ boardId }: CanvasBoardProps) {
         type: "text",
         position: editingText.position,
         content: textInput.trim(),
-        fontSize: fontSize,
-        fontFamily: "Arial, sans-serif",
-        color: strokeColor
+        fontSize,
+        fontFamily,
+        fontWeight,
+        fontStyle,
+        textAlign,
+        color: strokeColor,
+        zIndex: Math.max(0, ...texts.map(t => t.zIndex || 0)) + 1
       };
-      
-      const addTextCommand: Command = {
-        execute: () => {
-          setTexts(prev => [...prev, newText]);
-        },
-        undo: () => {
-          setTexts(prev => prev.filter(t => t.id !== newText.id));
-        },
-        description: "Add text"
-      };
-      
-      executeCommand(addTextCommand);
+
+      const command = createAddTextCommand(newText, texts, setTexts);
+      commandSystem.executeCommand(command);
     }
     
     setEditingText(null);
     setTextInput("");
-  }, [editingText, textInput, fontSize, strokeColor, executeCommand]);
-  
-  const cancelTextInput = useCallback(() => {
-    setEditingText(null);
-    setTextInput("");
-  }, []);
+  }, [editingText, textInput, fontSize, fontFamily, fontWeight, fontStyle, textAlign, strokeColor, texts, commandSystem]);
 
-  const rotateObject = useCallback((obj: Shape | DrawingPath, center: Point, currentPoint: Point, initialAngle: number): Shape | DrawingPath => {
-    // Calculate current angle from center to current point
-    const currentAngle = Math.atan2(currentPoint.y - center.y, currentPoint.x - center.x);
-    // Calculate rotation delta
-    const rotation = currentAngle - initialAngle;
-    
-    // Add rotation to the object (in radians)
-    const currentRotation = obj.rotation || 0;
-    const newRotation = currentRotation + rotation;
-    
-    return {
-      ...obj,
-      rotation: newRotation
-    };
-  }, []);
-
-  // Helper function to undo the last command
-  const undo = useCallback(() => {
-    if (historyIndex >= 0 && history[historyIndex]) {
-      history[historyIndex].undo();
-      setHistoryIndex(prev => prev - 1);
-    }
-  }, [history, historyIndex]);
-
-  // Helper function to redo the next command
-  const redo = useCallback(() => {
-    if (historyIndex + 1 < history.length) {
-      const nextIndex = historyIndex + 1;
-      history[nextIndex].execute();
-      setHistoryIndex(nextIndex);
-    }
-  }, [history, historyIndex]);
-
-  // Helper function to create state snapshot
-  const createStateSnapshot = useCallback((): CanvasState => {
-    return {
-      paths: [...paths],
-      shapes: [...shapes],
-      texts: [...texts]
-    };
-  }, [paths, shapes, texts]);
-
-  // Helper function to restore state from snapshot
-  const restoreState = useCallback((state: CanvasState) => {
-    setPaths(state.paths);
-    setShapes(state.shapes);
-    setTexts(state.texts);
-  }, []);
-
-  // Helper function to copy selected objects to clipboard
-  const copySelectedObjects = useCallback(() => {
-    if (selectedObjects.length === 0) return;
-    
-    const objectsToCopy: (DrawingPath | Shape | TextElement)[] = [];
-    
-    selectedObjects.forEach(id => {
-      const path = paths.find(p => p.id === id);
-      const shape = shapes.find(s => s.id === id);
-      const text = texts.find(t => t.id === id);
-      
-      if (path) objectsToCopy.push(path);
-      if (shape) objectsToCopy.push(shape);
-      if (text) objectsToCopy.push(text);
-    });
-    
-    setClipboard(objectsToCopy);
-  }, [selectedObjects, paths, shapes, texts]);
-
-  // Helper function to paste objects from clipboard
-  const pasteObjects = useCallback(() => {
-    if (clipboard.length === 0) return;
-    
-    const pastedObjects: string[] = [];
-    const offset = { x: 20, y: 20 }; // Offset to avoid pasting on top of original
-    
-    clipboard.forEach(obj => {
-      const newId = crypto.randomUUID();
-      pastedObjects.push(newId);
-      
-      if ('points' in obj) {
-        // Path object
-        const newPath: DrawingPath = {
-          ...obj,
-          id: newId,
-          points: obj.points.map(p => ({ x: p.x + offset.x, y: p.y + offset.y }))
-        };
-        setPaths(prev => [...prev, newPath]);
-      } else if ('content' in obj) {
-        // Text object
-        const newText: TextElement = {
-          ...obj,
-          id: newId,
-          position: { x: obj.position.x + offset.x, y: obj.position.y + offset.y }
-        };
-        setTexts(prev => [...prev, newText]);
-      } else {
-        // Shape object
-        const newShape: Shape = {
-          ...obj,
-          id: newId,
-          startPoint: { x: obj.startPoint.x + offset.x, y: obj.startPoint.y + offset.y },
-          endPoint: { x: obj.endPoint.x + offset.x, y: obj.endPoint.y + offset.y }
-        };
-        setShapes(prev => [...prev, newShape]);
-      }
-    });
-    
-    // Select the pasted objects
-    setSelectedObjects(pastedObjects);
-  }, [clipboard]);
-
-  // Helper function to duplicate selected objects
-  const duplicateSelectedObjects = useCallback(() => {
-    copySelectedObjects();
-    pasteObjects();
-  }, [copySelectedObjects, pasteObjects]);
-
-  // Helper function to get the maximum z-index
-  const getMaxZIndex = useCallback((): number => {
-    const allZIndices = [
-      ...paths.map(p => p.zIndex || 0),
-      ...shapes.map(s => s.zIndex || 0),
-      ...texts.map(t => t.zIndex || 0)
-    ];
-    return Math.max(0, ...allZIndices);
-  }, [paths, shapes, texts]);
-
-  // Helper function to get the minimum z-index
-  const getMinZIndex = useCallback((): number => {
-    const allZIndices = [
-      ...paths.map(p => p.zIndex || 0),
-      ...shapes.map(s => s.zIndex || 0),
-      ...texts.map(t => t.zIndex || 0)
-    ];
-    return Math.min(0, ...allZIndices);
-  }, [paths, shapes, texts]);
-
-  // Helper function to bring selected objects to front
-  const bringToFront = useCallback(() => {
-    if (selectedObjects.length === 0) return;
-    
-    const maxZ = getMaxZIndex();
-    const newZIndex = maxZ + 1;
-    
-    const bringToFrontCommand: Command = {
-      execute: () => {
-        setPaths(prev => prev.map(path => 
-          selectedObjects.includes(path.id) 
-            ? { ...path, zIndex: newZIndex }
-            : path
-        ));
-        
-        setShapes(prev => prev.map(shape => 
-          selectedObjects.includes(shape.id) 
-            ? { ...shape, zIndex: newZIndex }
-            : shape
-        ));
-        
-        setTexts(prev => prev.map(text => 
-          selectedObjects.includes(text.id) 
-            ? { ...text, zIndex: newZIndex }
-            : text
-        ));
-      },
-      undo: () => {
-        // Restore original z-indices (simplified implementation)
-        setPaths(prev => prev.map(path => 
-          selectedObjects.includes(path.id) 
-            ? { ...path, zIndex: path.zIndex ? path.zIndex - 1 : 0 }
-            : path
-        ));
-        
-        setShapes(prev => prev.map(shape => 
-          selectedObjects.includes(shape.id) 
-            ? { ...shape, zIndex: shape.zIndex ? shape.zIndex - 1 : 0 }
-            : shape
-        ));
-        
-        setTexts(prev => prev.map(text => 
-          selectedObjects.includes(text.id) 
-            ? { ...text, zIndex: text.zIndex ? text.zIndex - 1 : 0 }
-            : text
-        ));
-      },
-      description: `Bring ${selectedObjects.length} object(s) to front`
-    };
-    
-    executeCommand(bringToFrontCommand);
-  }, [selectedObjects, getMaxZIndex, executeCommand]);
-
-  // Helper function to send selected objects to back
-  const sendToBack = useCallback(() => {
-    if (selectedObjects.length === 0) return;
-    
-    const minZ = getMinZIndex();
-    const newZIndex = minZ - 1;
-    
-    const sendToBackCommand: Command = {
-      execute: () => {
-        setPaths(prev => prev.map(path => 
-          selectedObjects.includes(path.id) 
-            ? { ...path, zIndex: newZIndex }
-            : path
-        ));
-        
-        setShapes(prev => prev.map(shape => 
-          selectedObjects.includes(shape.id) 
-            ? { ...shape, zIndex: newZIndex }
-            : shape
-        ));
-        
-        setTexts(prev => prev.map(text => 
-          selectedObjects.includes(text.id) 
-            ? { ...text, zIndex: newZIndex }
-            : text
-        ));
-      },
-      undo: () => {
-        // Restore original z-indices (simplified implementation)
-        setPaths(prev => prev.map(path => 
-          selectedObjects.includes(path.id) 
-            ? { ...path, zIndex: path.zIndex ? path.zIndex + 1 : 0 }
-            : path
-        ));
-        
-        setShapes(prev => prev.map(shape => 
-          selectedObjects.includes(shape.id) 
-            ? { ...shape, zIndex: shape.zIndex ? shape.zIndex + 1 : 0 }
-            : shape
-        ));
-        
-        setTexts(prev => prev.map(text => 
-          selectedObjects.includes(text.id) 
-            ? { ...text, zIndex: text.zIndex ? text.zIndex + 1 : 0 }
-            : text
-        ));
-      },
-      description: `Send ${selectedObjects.length} object(s) to back`
-    };
-    
-    executeCommand(sendToBackCommand);
-  }, [selectedObjects, getMinZIndex, executeCommand]);
-
-  const tools = [
-    { type: "select" as ToolType, icon: MousePointer2, label: "Select" },
-    { type: "pen" as ToolType, icon: Pen, label: "Pen" },
-    { type: "rectangle" as ToolType, icon: Square, label: "Rectangle" },
-    { type: "circle" as ToolType, icon: Circle, label: "Circle" },
-    { type: "text" as ToolType, icon: Type, label: "Text" },
-    { type: "eraser" as ToolType, icon: Eraser, label: "Eraser" },
-  ];
-
-  const resizeCanvas = useCallback(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const container = canvas.parentElement;
-    if (!container) return;
-
-    const rect = container.getBoundingClientRect();
-    const devicePixelRatio = window.devicePixelRatio || 1;
-
-    canvas.width = rect.width * devicePixelRatio;
-    canvas.height = rect.height * devicePixelRatio;
-    canvas.style.width = `${rect.width}px`;
-    canvas.style.height = `${rect.height}px`;
-
-    const ctx = canvas.getContext("2d");
-    if (ctx) {
-      ctx.scale(devicePixelRatio, devicePixelRatio);
-    }
-  }, []);
-
-  const render = useCallback(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    ctx.save();
-    ctx.translate(viewport.offsetX, viewport.offsetY);
-    ctx.scale(viewport.scale, viewport.scale);
-
-    // Draw grid
-    ctx.strokeStyle = "#e0e0e0";
-    ctx.lineWidth = 0.5;
-    const gridSize = 20;
-    const startX = Math.floor(-viewport.offsetX / viewport.scale / gridSize) * gridSize;
-    const startY = Math.floor(-viewport.offsetY / viewport.scale / gridSize) * gridSize;
-    const endX = startX + (canvas.width / viewport.scale) + gridSize;
-    const endY = startY + (canvas.height / viewport.scale) + gridSize;
-
-    for (let x = startX; x <= endX; x += gridSize) {
-      ctx.beginPath();
-      ctx.moveTo(x, startY);
-      ctx.lineTo(x, endY);
-      ctx.stroke();
-    }
-
-    for (let y = startY; y <= endY; y += gridSize) {
-      ctx.beginPath();
-      ctx.moveTo(startX, y);
-      ctx.lineTo(endX, y);
-      ctx.stroke();
-    }
-
-    // Create sorted arrays by z-index
-    const sortedPaths = [...paths].sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0));
-    const sortedShapes = [...shapes].sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0));
-    const sortedTexts = [...texts].sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0));
-    
-    // Create combined sorted array with object types
-    const allObjects: Array<{ obj: DrawingPath | Shape | TextElement; objType: 'path' | 'shape' | 'text' }> = [
-      ...sortedPaths.map(p => ({ obj: p, objType: 'path' as const })),
-      ...sortedShapes.map(s => ({ obj: s, objType: 'shape' as const })),
-      ...sortedTexts.map(t => ({ obj: t, objType: 'text' as const }))
-    ].sort((a, b) => (a.obj.zIndex || 0) - (b.obj.zIndex || 0));
-
-    allObjects.forEach(({ obj, objType }) => {
-      if (objType === 'path') {
-        const path = obj as DrawingPath;
-        if (path.points.length > 1) {
-          const isSelected = selectedObjects.includes(path.id);
-          const offset = isSelected && isDragging ? dragOffset : { x: 0, y: 0 };
-          
-          ctx.strokeStyle = path.color;
-          ctx.lineWidth = path.width;
-          ctx.globalAlpha = isSelected && isDragging ? 0.7 : 1;
-          
-          ctx.beginPath();
-          ctx.moveTo(path.points[0].x + offset.x, path.points[0].y + offset.y);
-          for (let i = 1; i < path.points.length; i++) {
-            ctx.lineTo(path.points[i].x + offset.x, path.points[i].y + offset.y);
-          }
-          ctx.stroke();
-          ctx.globalAlpha = 1;
-
-          // Draw selection indicator for paths
-          if (isSelected) {
-            const originalPath = path;
-            const previewPath = isDragging ? moveObject(originalPath, offset) as DrawingPath : originalPath;
-            const bounds = getBounds(previewPath);
-            
-            ctx.strokeStyle = "#007bff";
-            ctx.lineWidth = 2 / viewport.scale;
-            ctx.setLineDash([5 / viewport.scale, 5 / viewport.scale]);
-            ctx.strokeRect(bounds.x, bounds.y, bounds.width, bounds.height);
-            ctx.setLineDash([]);
-          }
-        }
-      } else if (objType === 'shape') {
-        const shape = obj as Shape;
-        const isSelected = selectedObjects.includes(shape.id);
-        const offset = isSelected && isDragging ? dragOffset : { x: 0, y: 0 };
-        const previewShape = isSelected && isDragging ? moveObject(shape, offset) as Shape : shape;
-        
-        ctx.strokeStyle = shape.color;
-        ctx.lineWidth = shape.width;
-        ctx.globalAlpha = isSelected && isDragging ? 0.7 : 1;
-        
-        if (shape.fillColor && shape.fillColor !== "transparent") {
-          ctx.fillStyle = shape.fillColor;
-        }
-
-        if (shape.type === "rectangle") {
-          const width = previewShape.endPoint.x - previewShape.startPoint.x;
-          const height = previewShape.endPoint.y - previewShape.startPoint.y;
-          
-          ctx.beginPath();
-          ctx.rect(previewShape.startPoint.x, previewShape.startPoint.y, width, height);
-          
-          if (shape.fillColor && shape.fillColor !== "transparent") {
-            ctx.fill();
-          }
-          ctx.stroke();
-        } else if (shape.type === "circle") {
-          const centerX = (previewShape.startPoint.x + previewShape.endPoint.x) / 2;
-          const centerY = (previewShape.startPoint.y + previewShape.endPoint.y) / 2;
-          const radiusX = Math.abs(previewShape.endPoint.x - previewShape.startPoint.x) / 2;
-          const radiusY = Math.abs(previewShape.endPoint.y - previewShape.startPoint.y) / 2;
-          const radius = Math.min(radiusX, radiusY);
-
-          ctx.beginPath();
-          ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
-          
-          if (shape.fillColor && shape.fillColor !== "transparent") {
-            ctx.fill();
-          }
-          ctx.stroke();
-        }
-        
-        ctx.globalAlpha = 1;
-
-        // Draw selection indicator for shapes
-        if (isSelected) {
-          const bounds = getBounds(previewShape);
-          ctx.strokeStyle = "#007bff";
-          ctx.lineWidth = 2 / viewport.scale;
-          ctx.setLineDash([5 / viewport.scale, 5 / viewport.scale]);
-          ctx.strokeRect(bounds.x, bounds.y, bounds.width, bounds.height);
-          ctx.setLineDash([]);
-          
-          // Draw selection handles (8 handles: 4 corners + 4 edges)
-          const handleSize = 8 / viewport.scale;
-          ctx.fillStyle = "#007bff";
-          const handles = [
-            { x: bounds.x, y: bounds.y }, // nw
-            { x: bounds.x + bounds.width, y: bounds.y }, // ne
-            { x: bounds.x + bounds.width, y: bounds.y + bounds.height }, // se
-            { x: bounds.x, y: bounds.y + bounds.height }, // sw
-            { x: bounds.x + bounds.width / 2, y: bounds.y }, // n
-            { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height }, // s
-            { x: bounds.x, y: bounds.y + bounds.height / 2 }, // w
-            { x: bounds.x + bounds.width, y: bounds.y + bounds.height / 2 } // e
-          ];
-          
-          handles.forEach(handle => {
-            ctx.fillRect(handle.x - handleSize/2, handle.y - handleSize/2, handleSize, handleSize);
-          });
-          
-          // Draw rotation handle
-          const rotationHandleDistance = 20 / viewport.scale;
-          const rotationHandle = {
-            x: bounds.x + bounds.width / 2,
-            y: bounds.y - rotationHandleDistance
-          };
-          
-          // Draw line from top center to rotation handle
-          ctx.strokeStyle = "#007bff";
-          ctx.lineWidth = 1 / viewport.scale;
-          ctx.beginPath();
-          ctx.moveTo(bounds.x + bounds.width / 2, bounds.y);
-          ctx.lineTo(rotationHandle.x, rotationHandle.y);
-          ctx.stroke();
-          
-          // Draw rotation handle circle
-          ctx.fillStyle = "#007bff";
-          ctx.beginPath();
-          ctx.arc(rotationHandle.x, rotationHandle.y, handleSize / 2, 0, 2 * Math.PI);
-          ctx.fill();
-          ctx.strokeStyle = "white";
-          ctx.lineWidth = 1 / viewport.scale;
-          ctx.stroke();
-        }
-      } else if (objType === 'text') {
-        const text = obj as TextElement;
-        const isSelected = selectedObjects.includes(text.id);
-        const offset = isSelected && isDragging ? dragOffset : { x: 0, y: 0 };
-        const previewText = isSelected && isDragging ? moveObject(text, offset) as TextElement : text;
-        
-        ctx.font = `${text.fontSize}px ${text.fontFamily}`;
-        ctx.fillStyle = text.color;
-        ctx.textBaseline = 'top';
-        ctx.fillText(previewText.content, previewText.position.x, previewText.position.y);
-        
-        // Draw selection indicator for texts
-        if (isSelected) {
-          const bounds = getBounds(previewText);
-          ctx.strokeStyle = "#007bff";
-          ctx.lineWidth = 2 / viewport.scale;
-          ctx.setLineDash([5 / viewport.scale, 5 / viewport.scale]);
-          ctx.strokeRect(bounds.x, bounds.y, bounds.width, bounds.height);
-          ctx.setLineDash([]);
-          
-          // Draw selection handles
-          const handleSize = 8 / viewport.scale;
-          ctx.fillStyle = "#007bff";
-          const handles = [
-            { x: bounds.x, y: bounds.y }, // nw
-            { x: bounds.x + bounds.width, y: bounds.y }, // ne
-            { x: bounds.x + bounds.width, y: bounds.y + bounds.height }, // se
-            { x: bounds.x, y: bounds.y + bounds.height }, // sw
-          ];
-          
-          handles.forEach(handle => {
-            ctx.fillRect(handle.x - handleSize/2, handle.y - handleSize/2, handleSize, handleSize);
-          });
-        }
-      }
-    });
-
-    // Draw current path
-    if (isDrawing && currentPath.length > 1) {
-      ctx.strokeStyle = strokeColor;
-      ctx.lineWidth = strokeWidth;
-      ctx.beginPath();
-      ctx.moveTo(currentPath[0].x, currentPath[0].y);
-      for (let i = 1; i < currentPath.length; i++) {
-        ctx.lineTo(currentPath[i].x, currentPath[i].y);
-      }
-      ctx.stroke();
-    }
-
-    // Draw current shape preview
-    if (isDrawing && currentShape && currentShape.startPoint && currentShape.endPoint) {
-      ctx.strokeStyle = strokeColor;
-      ctx.lineWidth = strokeWidth;
-      ctx.setLineDash([5, 5]); // Dashed preview
-
-      if (fillColor && fillColor !== "transparent") {
-        ctx.fillStyle = fillColor;
-      }
-
-      if (currentShape.type === "rectangle") {
-        const width = currentShape.endPoint.x - currentShape.startPoint.x;
-        const height = currentShape.endPoint.y - currentShape.startPoint.y;
-        
-        ctx.beginPath();
-        ctx.rect(currentShape.startPoint.x, currentShape.startPoint.y, width, height);
-        
-        if (fillColor && fillColor !== "transparent") {
-          ctx.fill();
-        }
-        ctx.stroke();
-      } else if (currentShape.type === "circle") {
-        const centerX = (currentShape.startPoint.x + currentShape.endPoint.x) / 2;
-        const centerY = (currentShape.startPoint.y + currentShape.endPoint.y) / 2;
-        const radiusX = Math.abs(currentShape.endPoint.x - currentShape.startPoint.x) / 2;
-        const radiusY = Math.abs(currentShape.endPoint.y - currentShape.startPoint.y) / 2;
-        const radius = Math.min(radiusX, radiusY);
-
-        ctx.beginPath();
-        ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
-        
-        if (fillColor && fillColor !== "transparent") {
-          ctx.fill();
-        }
-        ctx.stroke();
-      }
-
-      ctx.setLineDash([]); // Reset dash
-    }
-
-    ctx.restore();
-  }, [paths, shapes, texts, currentPath, currentShape, isDrawing, strokeColor, strokeWidth, fillColor, viewport, selectedObjects, getBounds, isDragging, dragOffset, moveObject]);
-
-  const screenToCanvas = useCallback((screenPoint: Point): Point => {
-    const canvas = canvasRef.current;
-    if (!canvas) return screenPoint;
-
-    const rect = canvas.getBoundingClientRect();
-    const x = (screenPoint.x - rect.left - viewport.offsetX) / viewport.scale;
-    const y = (screenPoint.y - rect.top - viewport.offsetY) / viewport.scale;
-    
-    return { x, y };
-  }, [viewport]);
-
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const rect = canvas.getBoundingClientRect();
-    const screenPoint = { x: e.clientX - rect.left, y: e.clientY - rect.top };
-    const canvasPoint = screenToCanvas(screenPoint);
-
-    if (currentTool === "select") {
-      // Check if clicking on a resize handle first
-      let resizeHandleFound = null;
-      let targetObject = null;
-      
-      if (selectedObjects.length === 1) {
-        // Only allow resizing when single object is selected
-        const selectedId = selectedObjects[0];
-        const obj = [...shapes, ...paths, ...texts].find(o => o.id === selectedId);
-        
-        if (obj && !('points' in obj)) { // Only shapes can be resized for now
-          const bounds = getBounds(obj);
-          resizeHandleFound = getResizeHandle(canvasPoint, bounds);
-          if (resizeHandleFound) {
-            targetObject = obj;
-          }
-        }
-      }
-      
-      if (resizeHandleFound && targetObject) {
-        if (resizeHandleFound === 'rotate') {
-          // Start rotating
-          const bounds = getBounds(targetObject);
-          const center = {
-            x: bounds.x + bounds.width / 2,
-            y: bounds.y + bounds.height / 2
-          };
-          const initialAngle = Math.atan2(canvasPoint.y - center.y, canvasPoint.x - center.x);
-          setIsRotating(true);
-          setRotationStart({
-            point: canvasPoint,
-            center,
-            initialRotation: targetObject.rotation || 0
-          });
-        } else {
-          // Start resizing
-          setIsResizing(true);
-          setResizeHandle(resizeHandleFound);
-          setResizeStart({
-            point: canvasPoint,
-            bounds: getBounds(targetObject)
-          });
-        }
-      } else {
-        // Find object under cursor (search from top to bottom)
-        let clickedObject: string | null = null;
-        
-        // Check texts first (they're drawn on top)
-        for (let i = texts.length - 1; i >= 0; i--) {
-          if (isPointInObject(canvasPoint, texts[i])) {
-            clickedObject = texts[i].id;
-            break;
-          }
-        }
-        
-        // If no text clicked, check shapes
-        if (!clickedObject) {
-          for (let i = shapes.length - 1; i >= 0; i--) {
-            if (isPointInObject(canvasPoint, shapes[i])) {
-              clickedObject = shapes[i].id;
-              break;
-            }
-          }
-        }
-        
-        // If no shape clicked, check paths
-        if (!clickedObject) {
-          for (let i = paths.length - 1; i >= 0; i--) {
-            if (isPointInObject(canvasPoint, paths[i])) {
-              clickedObject = paths[i].id;
-              break;
-            }
-          }
-        }
-
-        if (clickedObject) {
-          // Handle selection
-          if (e.ctrlKey || e.metaKey) {
-            // Multi-select: toggle selection
-            setSelectedObjects(prev => 
-              prev.includes(clickedObject!) 
-                ? prev.filter(id => id !== clickedObject)
-                : [...prev, clickedObject!]
-            );
-          } else {
-            // Single select (if not already selected)
-            if (!selectedObjects.includes(clickedObject)) {
-              setSelectedObjects([clickedObject]);
-            }
-          }
-          
-          // Start drag if object is selected
-          if (selectedObjects.includes(clickedObject) || !e.ctrlKey) {
-            setIsDragging(true);
-            setDragStart(canvasPoint);
-            setDragOffset({ x: 0, y: 0 });
-          }
-        } else {
-          // Clicked on empty space - clear selection
-          setSelectedObjects([]);
-        }
-      }
-    } else {
-      // Drawing tools
-      setIsDrawing(true);
-
-      if (currentTool === "pen") {
-        setCurrentPath([canvasPoint]);
-      } else if (currentTool === "rectangle" || currentTool === "circle") {
-        setCurrentShape({
-          type: currentTool,
-          startPoint: canvasPoint,
-          endPoint: canvasPoint,
-        });
-      } else if (currentTool === "text") {
-        // Start text editing
-        setEditingText({
-          id: crypto.randomUUID(),
-          position: canvasPoint
-        });
-        setTextInput("");
-        setIsDrawing(false); // Don't set drawing mode for text
-      }
-    }
-  }, [currentTool, screenToCanvas, shapes, paths, isPointInObject, selectedObjects, getBounds, getResizeHandle]);
-
-  const handleMouseMove = useCallback((e: React.MouseEvent) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const rect = canvas.getBoundingClientRect();
-    const screenPoint = { x: e.clientX - rect.left, y: e.clientY - rect.top };
-    const canvasPoint = screenToCanvas(screenPoint);
-
-    if (currentTool === "select") {
-      if (isResizing && resizeHandle && resizeStart && selectedObjects.length === 1) {
-        // Handle resizing
-        const selectedId = selectedObjects[0];
-        const obj = shapes.find(s => s.id === selectedId);
-        if (obj) {
-          const newShape = resizeObject(obj, resizeHandle, canvasPoint, resizeStart.bounds);
-          setShapes(prev => prev.map(s => s.id === selectedId ? newShape : s));
-        }
-      } else if (isRotating && rotationStart && selectedObjects.length === 1) {
-        // Handle rotation
-        const selectedId = selectedObjects[0];
-        // Find object in both shapes and paths
-        const shapeObj = shapes.find(s => s.id === selectedId);
-        const pathObj = paths.find(p => p.id === selectedId);
-        
-        if (shapeObj) {
-          const initialAngle = Math.atan2(rotationStart.point.y - rotationStart.center.y, rotationStart.point.x - rotationStart.center.x);
-          const rotatedShape = rotateObject(shapeObj, rotationStart.center, canvasPoint, initialAngle);
-          setShapes(prev => prev.map(s => s.id === selectedId ? rotatedShape as Shape : s));
-        } else if (pathObj) {
-          const initialAngle = Math.atan2(rotationStart.point.y - rotationStart.center.y, rotationStart.point.x - rotationStart.center.x);
-          const rotatedPath = rotateObject(pathObj, rotationStart.center, canvasPoint, initialAngle);
-          setPaths(prev => prev.map(p => p.id === selectedId ? rotatedPath as DrawingPath : p));
-        }
-      } else if (isDragging && dragStart && selectedObjects.length > 0) {
-        // Calculate drag offset
-        const newOffset = {
-          x: canvasPoint.x - dragStart.x,
-          y: canvasPoint.y - dragStart.y
-        };
-        setDragOffset(newOffset);
-      } else if (selectedObjects.length === 1) {
-        // Update cursor style when hovering over resize handles
-        const selectedId = selectedObjects[0];
-        const obj = [...shapes, ...paths].find(o => o.id === selectedId);
-        
-        if (obj && !('points' in obj)) { // Only shapes can be resized for now
-          const bounds = getBounds(obj);
-          const handle = getResizeHandle(canvasPoint, bounds);
-          
-          if (handle) {
-            const newCursor = getCursorStyle(handle);
-            if (newCursor !== cursorStyle) {
-              setCursorStyle(newCursor);
-            }
-          } else if (cursorStyle !== "default") {
-            setCursorStyle("default");
-          }
-        }
-      }
-    } else if (isDrawing) {
-      if (currentTool === "pen") {
-        setCurrentPath(prev => [...prev, canvasPoint]);
-      } else if ((currentTool === "rectangle" || currentTool === "circle") && currentShape) {
-        setCurrentShape(prev => prev ? {
-          ...prev,
-          endPoint: canvasPoint
-        } : null);
-      }
-    }
-  }, [isDrawing, isDragging, isResizing, currentTool, screenToCanvas, currentShape, dragStart, selectedObjects, resizeHandle, resizeStart, shapes, resizeObject, getBounds, getResizeHandle, getCursorStyle, cursorStyle, paths]);
-
-  const handleMouseUp = useCallback(() => {
-    if (isDragging && selectedObjects.length > 0 && (dragOffset.x !== 0 || dragOffset.y !== 0)) {
-      // Apply drag movement to selected objects using command pattern
-      const beforeState = createStateSnapshot();
-      
-      const moveCommand: Command = {
-        execute: () => {
-          setPaths(prev => prev.map(path => 
-            selectedObjects.includes(path.id) 
-              ? moveObject(path, dragOffset) as DrawingPath
-              : path
-          ));
-          
-          setShapes(prev => prev.map(shape => 
-            selectedObjects.includes(shape.id) 
-              ? moveObject(shape, dragOffset) as Shape
-              : shape
-          ));
-          
-          setTexts(prev => prev.map(text => 
-            selectedObjects.includes(text.id) 
-              ? moveObject(text, dragOffset) as TextElement
-              : text
-          ));
-        },
-        undo: () => {
-          restoreState(beforeState);
-        },
-        description: `Move ${selectedObjects.length} object(s)`
-      };
-      
-      executeCommand(moveCommand);
-    }
-    
-    if (isDrawing) {
-      if (currentTool === "pen" && currentPath.length > 1) {
-        const newPath: DrawingPath = {
-          id: crypto.randomUUID(),
-          points: [...currentPath],
-          color: strokeColor,
-          width: strokeWidth
-        };
-        
-        const addPathCommand: Command = {
-          execute: () => {
-            setPaths(prev => [...prev, newPath]);
-          },
-          undo: () => {
-            setPaths(prev => prev.filter(p => p.id !== newPath.id));
-          },
-          description: "Draw path"
-        };
-        
-        executeCommand(addPathCommand);
-      } else if ((currentTool === "rectangle" || currentTool === "circle") && currentShape?.startPoint && currentShape?.endPoint) {
-        const newShape: Shape = {
-          id: crypto.randomUUID(),
-          type: currentShape.type as "rectangle" | "circle",
-          startPoint: currentShape.startPoint,
-          endPoint: currentShape.endPoint,
-          color: strokeColor,
-          width: strokeWidth,
-          fillColor: fillColor
-        };
-        
-        const addShapeCommand: Command = {
-          execute: () => {
-            setShapes(prev => [...prev, newShape]);
-          },
-          undo: () => {
-            setShapes(prev => prev.filter(s => s.id !== newShape.id));
-          },
-          description: `Draw ${newShape.type}`
-        };
-        
-        executeCommand(addShapeCommand);
-      }
-    }
-    
-    // Reset all interaction states
-    setIsDrawing(false);
-    setIsDragging(false);
-    setIsResizing(false);
-    setIsRotating(false);
-    setCurrentPath([]);
-    setCurrentShape(null);
-    setDragStart(null);
-    setDragOffset({ x: 0, y: 0 });
-    setResizeHandle(null);
-    setResizeStart(null);
-    setRotationStart(null);
-  }, [isDrawing, isDragging, currentTool, currentPath, currentShape, strokeColor, strokeWidth, fillColor, selectedObjects, dragOffset, moveObject, createStateSnapshot, executeCommand, restoreState]);
-
-  const handleWheel = useCallback((e: React.WheelEvent) => {
-    e.preventDefault();
-    const scaleFactor = e.deltaY < 0 ? 1.1 : 0.9;
-    const newScale = Math.max(0.1, Math.min(5, viewport.scale * scaleFactor));
-    
-    setViewport(prev => ({ ...prev, scale: newScale }));
-  }, [viewport.scale]);
-
-  useEffect(() => {
-    resizeCanvas();
-    window.addEventListener("resize", resizeCanvas);
-    return () => window.removeEventListener("resize", resizeCanvas);
-  }, [resizeCanvas]);
-
-  useEffect(() => {
-    render();
-  }, [render]);
-
-  // Handle keyboard events
+  // Keyboard event handler
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Check if we're in an input field
-      const target = e.target as HTMLElement;
-      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') {
+      if (editingText) {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          completeTextInput();
+        } else if (e.key === 'Escape') {
+          e.preventDefault();
+          setEditingText(null);
+          setTextInput("");
+        }
         return;
       }
 
-      if (e.key === 'Delete' || e.key === 'Backspace') {
-        if (selectedObjects.length > 0) {
-          // Delete selected objects
-          setPaths(prev => prev.filter(path => !selectedObjects.includes(path.id)));
-          setShapes(prev => prev.filter(shape => !selectedObjects.includes(shape.id)));
-          setTexts(prev => prev.filter(text => !selectedObjects.includes(text.id)));
-          setSelectedObjects([]);
+      if (e.ctrlKey || e.metaKey) {
+        if (e.key === 'z' && !e.shiftKey) {
+          e.preventDefault();
+          commandSystem.undo();
+        } else if ((e.key === 'y') || (e.key === 'z' && e.shiftKey)) {
+          e.preventDefault();
+          commandSystem.redo();
+        } else if (e.key === 'a') {
+          e.preventDefault();
+          selectionSystem.selectAll(paths, shapes, texts);
+        } else if (e.key === 'c') {
+          e.preventDefault();
+          // Copy functionality would go here
+        } else if (e.key === 'd') {
+          e.preventDefault();
+          selectionSystem.duplicateSelected(paths, shapes, texts, setPaths, setShapes, setTexts);
         }
-      } else if (e.key === 'Escape') {
-        // Clear selection
-        setSelectedObjects([]);
-      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c') {
-        // Copy selected objects
+      } else if (e.key === 'Delete') {
         e.preventDefault();
-        copySelectedObjects();
-      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'v') {
-        // Paste objects
+        selectionSystem.deleteSelected(paths, shapes, texts, setPaths, setShapes, setTexts);
+      } else if (e.key >= '1' && e.key <= '6') {
         e.preventDefault();
-        pasteObjects();
-      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd') {
-        // Duplicate objects
-        e.preventDefault();
-        duplicateSelectedObjects();
-      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a') {
-        // Select all objects
-        e.preventDefault();
-        const allIds = [...paths.map(p => p.id), ...shapes.map(s => s.id)];
-        setSelectedObjects(allIds);
-      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
-        // Undo
-        e.preventDefault();
-        undo();
-      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
-        // Redo
-        e.preventDefault();
-        redo();
-      } else if ((e.ctrlKey || e.metaKey) && e.key === ']') {
-        // Bring to front
-        e.preventDefault();
-        bringToFront();
-      } else if ((e.ctrlKey || e.metaKey) && e.key === '[') {
-        // Send to back
-        e.preventDefault();
-        sendToBack();
+        const toolMap: { [key: string]: ToolType } = {
+          '1': 'select', '2': 'pen', '3': 'rectangle',
+          '4': 'circle', '5': 'text', '6': 'eraser'
+        };
+        const newTool = toolMap[e.key];
+        if (newTool) {
+          setCurrentTool(newTool);
+        }
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedObjects, copySelectedObjects, pasteObjects, duplicateSelectedObjects, paths, shapes, undo, redo, bringToFront, sendToBack]);
+  }, [editingText, completeTextInput, commandSystem, selectionSystem, paths, shapes, texts]);
+
+  // Zoom and pan handlers
+  const handleWheel = useCallback((e: React.WheelEvent) => {
+    e.preventDefault();
+    
+    if (e.ctrlKey || e.metaKey) {
+      // Zoom
+      const rect = canvasRef.current?.getBoundingClientRect();
+      if (!rect) return;
+
+      const mouseX = e.clientX - rect.left;
+      const mouseY = e.clientY - rect.top;
+      
+      const scaleFactor = e.deltaY > 0 ? 0.9 : 1.1;
+      const newScale = Math.max(0.1, Math.min(5, viewport.scale * scaleFactor));
+      
+      const newOffsetX = mouseX - (mouseX - viewport.offsetX) * (newScale / viewport.scale);
+      const newOffsetY = mouseY - (mouseY - viewport.offsetY) * (newScale / viewport.scale);
+      
+      setViewport({
+        offsetX: newOffsetX,
+        offsetY: newOffsetY,
+        scale: newScale
+      });
+    } else {
+      // Pan
+      setViewport(prev => ({
+        ...prev,
+        offsetX: prev.offsetX - e.deltaX,
+        offsetY: prev.offsetY - e.deltaY
+      }));
+    }
+  }, [viewport]);
 
   return (
-    <div className="h-screen w-full bg-gray-50 relative overflow-hidden">
+    <div className="flex h-screen bg-gray-100">
       {/* Toolbar */}
-      <div className="absolute top-4 left-4 z-10 bg-white border rounded-lg shadow-lg p-2">
-        <div className="flex flex-col gap-2">
+      <div className="bg-white border-r border-gray-200 p-4 w-64 overflow-y-auto">
+        <div className="space-y-4">
           {/* Tools */}
-          <div className="flex gap-1">
-            {tools.map(({ type, icon: Icon, label }) => (
-              <Button
-                key={type}
-                variant={currentTool === type ? "default" : "outline"}
-                size="sm"
-                onClick={() => setCurrentTool(type)}
-                title={label}
-              >
-                <Icon className="w-4 h-4" />
-              </Button>
-            ))}
+          <div>
+            <h3 className="text-sm font-medium text-gray-700 mb-2">工具</h3>
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                { tool: "select" as ToolType, icon: MousePointer2, label: "选择 (1)" },
+                { tool: "pen" as ToolType, icon: Pen, label: "画笔 (2)" },
+                { tool: "rectangle" as ToolType, icon: Square, label: "矩形 (3)" },
+                { tool: "circle" as ToolType, icon: Circle, label: "圆形 (4)" },
+                { tool: "text" as ToolType, icon: Type, label: "文本 (5)" },
+                { tool: "eraser" as ToolType, icon: Eraser, label: "橡皮 (6)" }
+              ].map(({ tool, icon: Icon, label }) => (
+                <Button
+                  key={tool}
+                  variant={currentTool === tool ? "default" : "outline"}
+                  className="p-2 h-auto flex flex-col items-center gap-1"
+                  onClick={() => setCurrentTool(tool)}
+                  title={label}
+                >
+                  <Icon size={16} />
+                  <span className="text-xs">{label.split(' ')[0]}</span>
+                </Button>
+              ))}
+            </div>
           </div>
 
-          {/* Stroke Colors */}
-          <div className="text-xs font-medium mb-1">Stroke:</div>
-          <div className="flex gap-1 flex-wrap max-w-[200px]">
-            {colors.map((color) => (
-              <button
-                key={color}
-                className={`w-6 h-6 rounded border-2 hover:border-gray-500 ${
-                  strokeColor === color ? "border-blue-500" : "border-gray-300"
-                }`}
-                style={{ backgroundColor: color }}
-                onClick={() => setStrokeColor(color)}
-                title={`Stroke: ${color}`}
-              />
-            ))}
-          </div>
-
-          {/* Fill Colors */}
-          <div className="text-xs font-medium mb-1">Fill:</div>
-          <div className="flex gap-1 flex-wrap max-w-[200px]">
-            <button
-              className={`w-6 h-6 rounded border-2 hover:border-gray-500 ${
-                fillColor === "transparent" ? "border-blue-500" : "border-gray-300"
-              }`}
-              style={{ 
-                backgroundColor: "white",
-                backgroundImage: "linear-gradient(45deg, #ccc 25%, transparent 25%), linear-gradient(-45deg, #ccc 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #ccc 75%), linear-gradient(-45deg, transparent 75%, #ccc 75%)",
-                backgroundSize: "8px 8px",
-                backgroundPosition: "0 0, 0 4px, 4px -4px, -4px 0px"
-              }}
-              onClick={() => setFillColor("transparent")}
-              title="No fill"
-            />
-            {colors.map((color) => (
-              <button
-                key={`fill-${color}`}
-                className={`w-6 h-6 rounded border-2 hover:border-gray-500 ${
-                  fillColor === color ? "border-blue-500" : "border-gray-300"
-                }`}
-                style={{ backgroundColor: color }}
-                onClick={() => setFillColor(color)}
-                title={`Fill: ${color}`}
-              />
-            ))}
+          {/* Colors */}
+          <div>
+            <h3 className="text-sm font-medium text-gray-700 mb-2">颜色</h3>
+            <div className="grid grid-cols-4 gap-2">
+              {colors.map(color => (
+                <Button
+                  key={color}
+                  className="w-8 h-8 p-0 rounded border-2"
+                  style={{ 
+                    backgroundColor: color,
+                    borderColor: strokeColor === color ? '#000' : '#ccc'
+                  }}
+                  onClick={() => setStrokeColor(color)}
+                />
+              ))}
+            </div>
           </div>
 
           {/* Stroke Width */}
-          <div className="flex items-center gap-2">
-            <span className="text-xs">Width:</span>
+          <div>
+            <h3 className="text-sm font-medium text-gray-700 mb-2">线条宽度</h3>
             <input
               type="range"
-              min="1"
-              max="20"
+              min={1}
+              max={20}
               value={strokeWidth}
               onChange={(e) => setStrokeWidth(Number(e.target.value))}
-              className="w-16 h-2"
+              className="w-full"
             />
-            <span className="text-xs w-6">{strokeWidth}</span>
+            <div className="text-xs text-gray-500 mt-1">{strokeWidth}px</div>
           </div>
 
-          {/* Clear Button */}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              setPaths([]);
-              setShapes([]);
-            }}
-            className="text-xs"
-          >
-            Clear All
-          </Button>
+          {/* Font Size for Text */}
+          {currentTool === "text" && (
+            <div>
+              <h3 className="text-sm font-medium text-gray-700 mb-2">字体大小</h3>
+              <input
+                type="range"
+                min={8}
+                max={72}
+                value={fontSize}
+                onChange={(e) => setFontSize(Number(e.target.value))}
+                className="w-full"
+              />
+              <div className="text-xs text-gray-500 mt-1">{fontSize}px</div>
+            </div>
+          )}
+
+          {/* Selection Info */}
+          {selectedObjects.length > 0 && (
+            <div>
+              <h3 className="text-sm font-medium text-gray-700 mb-2">选中对象</h3>
+              <div className="text-xs text-gray-500">
+                已选中 {selectedObjects.length} 个对象
+              </div>
+              <div className="flex gap-2 mt-2">
+                <Button
+                  size="sm"
+                  onClick={() => selectionSystem.bringToFront(paths, shapes, texts, setPaths, setShapes, setTexts)}
+                >
+                  置顶
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={() => selectionSystem.sendToBack(paths, shapes, texts, setPaths, setShapes, setTexts)}
+                >
+                  置底
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Canvas */}
-      <canvas
-        ref={canvasRef}
-        className="bg-white"
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-        onWheel={handleWheel}
-        style={{ 
-          display: "block", 
-          width: "100%", 
-          height: "100%",
-          cursor: currentTool === "select" ? cursorStyle : "crosshair"
-        }}
-      />
-      
-      {/* Text Input Overlay */}
-      {editingText && (
-        <div 
-          className="absolute bg-transparent pointer-events-none"
-          style={{
-            left: (editingText.position.x * viewport.scale + viewport.offsetX) + 'px',
-            top: (editingText.position.y * viewport.scale + viewport.offsetY) + 'px',
-            transform: 'translate(-50%, -50%)'
-          }}
-        >
-          <input
-            type="text"
-            value={textInput}
-            onChange={(e) => setTextInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                completeTextInput();
-              } else if (e.key === 'Escape') {
-                cancelTextInput();
-              }
-            }}
-            onBlur={completeTextInput}
-            autoFocus
-            className="pointer-events-auto bg-transparent border-none outline-none text-black"
+      {/* Canvas Area */}
+      <div className="flex-1 relative">
+        <canvas
+          ref={canvasRef}
+          className="absolute inset-0 w-full h-full"
+          style={{ cursor: cursorStyle }}
+          onMouseDown={handleMouseDown}
+          onMouseMove={handleMouseMove}
+          onMouseUp={handleMouseUp}
+          onWheel={handleWheel}
+        />
+        
+        {/* Text Input Overlay */}
+        {editingText && (
+          <div 
+            className="absolute bg-white border border-blue-500 rounded p-2 z-10"
             style={{
-              fontSize: fontSize + 'px',
-              fontFamily: 'Arial, sans-serif',
-              color: strokeColor,
-              minWidth: '100px'
+              left: editingText.position.x * viewport.scale + viewport.offsetX,
+              top: editingText.position.y * viewport.scale + viewport.offsetY,
+              minWidth: '200px'
             }}
-            placeholder="Type text..."
-          />
-        </div>
-      )}
-
-      {/* Board Info */}
-      <div className="absolute bottom-4 left-4 bg-white/90 p-3 rounded-lg shadow text-sm">
-        <h3 className="font-medium mb-1">Board: {boardId}</h3>
-        <ul className="text-xs text-gray-600 space-y-1">
-          <li>• Tools: Select, Pen, Rectangle, Circle</li>
-          <li>• Select: Click to select, Ctrl+click for multi-select</li>
-          <li>• Drag selected objects to move them</li>
-          <li>• Resize: Drag corner/edge handles when selected</li>
-          <li>• Keyboard: Ctrl+C/V (copy/paste), Ctrl+D (duplicate), Ctrl+A (select all)</li>
-          <li>• Delete/Backspace to remove selected, Esc to clear selection</li>
-          <li>• Layering: Ctrl+] (bring to front), Ctrl+[ (send to back)</li>
-          <li>• Objects: {paths.length + shapes.length + texts.length} ({selectedObjects.length} selected)</li>
-          <li>• Clipboard: {clipboard.length} objects | Zoom: {Math.round(viewport.scale * 100)}%</li>
-        </ul>
+          >
+            <input
+              type="text"
+              value={textInput}
+              onChange={(e) => setTextInput(e.target.value)}
+              onBlur={completeTextInput}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  completeTextInput();
+                } else if (e.key === 'Escape') {
+                  e.preventDefault();
+                  setEditingText(null);
+                  setTextInput("");
+                }
+              }}
+              className="w-full px-2 py-1 border-none outline-none bg-transparent"
+              placeholder="输入文本..."
+              autoFocus
+            />
+          </div>
+        )}
       </div>
     </div>
   );

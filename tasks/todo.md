@@ -1,44 +1,44 @@
-# FigJam Clone MVP - Project Plan
+# FigJam 克隆版 MVP - 项目计划
 
-## Overview
-Build a collaborative whiteboard application similar to FigJam with real-time collaboration, drawing tools, and basic shapes/text functionality.
+## 项目概述
+构建一个类似 FigJam 的协作白板应用，包含实时协作、绘图工具和基本形状/文本功能。
 
-## 🚀 Current Progress Summary
+## 🚀 当前进度总览
 
-### ✅ PHASE 1 COMPLETED - Foundation & Basic Drawing
-- **Canvas Infrastructure**: HTML5 Canvas with pan/zoom, coordinate transforms, device pixel ratio
-- **Drawing Engine**: React Context state management, rendering pipeline, path smoothing
-- **Basic Tools**: Pen tool with variable width/color, Rectangle tool, Circle tool
-- **UI Foundation**: Main toolbar, tool selection, dual color system (stroke/fill)
+### ✅ 阶段 1 已完成 - 基础架构与基本绘图
+- **画布基础设施**: HTML5 画布，支持平移/缩放、坐标变换、设备像素比适配
+- **绘图引擎**: React Context 状态管理、渲染管道、路径平滑
+- **基本工具**: 可变宽度/颜色的笔刷工具、矩形工具、圆形工具
+- **UI 基础**: 主工具栏、工具选择、双色系统（描边/填充）
 
-### ✅ PHASE 2 COMPLETED - Selection & Object Manipulation
-- **Selection System**: Click to select objects, multi-select with Ctrl+click, visual indicators
-- **Selection Features**: Bounding boxes, selection handles (8-handle system), delete with keyboard
-- **Object Detection**: Hit testing for paths, shapes, and text with proper layering
-- **Object Manipulation**: Drag to move, resize with handles, rotation handles (implemented)
-- **Advanced Features**: Copy/paste (Ctrl+C/V), duplicate (Ctrl+D), select all (Ctrl+A)
-- **Undo/Redo System**: Command pattern implementation with full history
+### ✅ 阶段 2 已完成 - 选择与对象操作
+- **选择系统**: 点击选择对象、Ctrl+点击多选、可视化指示器
+- **选择功能**: 边界框、选择句柄（8句柄系统）、键盘删除
+- **对象检测**: 路径、形状和文本的碰撞检测，支持正确的分层
+- **对象操作**: 拖拽移动、句柄缩放、旋转句柄（已实现）
+- **高级功能**: 复制/粘贴（Ctrl+C/V）、重复（Ctrl+D）、全选（Ctrl+A）
+- **撤销/重做系统**: 命令模式实现，完整历史记录
 
-### ✅ PHASE 3 PARTIAL COMPLETED - Text System & Advanced Features
-- **Text System**: Text tool with inline editing, font size control, color support
-- **Text Features**: Click-to-place text, Enter to confirm, Escape to cancel
-- **Advanced Tools**: Complete toolbar with selection, pen, rectangle, circle, text tools
-- **Keyboard Shortcuts**: Full implementation (Ctrl+C/V/D/A, Delete, Esc, Ctrl+Z/Y)
+### ✅ 阶段 3 部分完成 - 文本系统与高级功能
+- **文本系统**: 内联编辑文本工具、字体大小控制、颜色支持
+- **文本功能**: 点击放置文本、回车确认、Esc 取消
+- **高级工具**: 完整工具栏（选择、笔刷、矩形、圆形、文本工具）
+- **键盘快捷键**: 完整实现（Ctrl+C/V/D/A、Delete、Esc、Ctrl+Z/Y）
 
-### 🔄 CURRENTLY WORKING ON - Polish & Remaining Features
-- **Next**: Object layering (bring to front/send to back)
-- **After**: Move to Phase 4 (Database persistence)
+### 🔄 当前开发重点 - 完善与剩余功能
+- **已完成**: 对象分层（置顶/置底）
+- **下一步**: 进入阶段 4（数据库持久化）
 
-### 📍 Routes Created
-- `/figjam` - Dashboard with board grid
-- `/figjam/[boardId]` - Canvas view with full drawing functionality
-- `/figjam-demo` - Standalone demo page
+### 📍 已创建的路由
+- `/figjam` - 看板网格的仪表板
+- `/figjam/[boardId]` - 具有完整绘图功能的画布视图
+- `/figjam-demo` - 独立演示页面
 
-## Implementation Phases - Detailed Tasks
+## 实现阶段 - 详细任务列表
 
-## Phase 1: Canvas Foundation & Basic Drawing
+## 阶段 1：画布基础与基本绘图
 
-### Canvas Infrastructure ✅ COMPLETED
+### 画布基础设施 ✅ 已完成
 - [x] Create canvas component with proper HTML5 Canvas setup
 - [x] Implement canvas sizing and device pixel ratio handling
 - [x] Add viewport transformation matrix for pan/zoom
@@ -48,7 +48,7 @@ Build a collaborative whiteboard application similar to FigJam with real-time co
 - [x] Add zoom functionality with mouse wheel and pinch gestures
 - [x] Create infinite canvas bounds and viewport management
 
-### Basic Drawing Engine ✅ COMPLETED
+### 基本绘图引擎 ✅ 已完成
 - [x] Design object model (DrawingPath and Shape interfaces)
 - [x] Create Path object for freehand drawing
 - [x] Create React Context for canvas state management
@@ -59,16 +59,16 @@ Build a collaborative whiteboard application similar to FigJam with real-time co
 - [x] Add variable stroke width and color support
 - [x] Create undo/redo system with command pattern
 
-### Basic Shapes ✅ COMPLETED
+### 基本形状 ✅ 已完成
 - [x] Create Rectangle shape object
 - [x] Create Circle/Ellipse shape object  
 - [ ] Create Line shape object (deferred)
 - [x] Implement shape preview while drawing (dashed preview)
 - [ ] Add snap-to-grid functionality (optional)
 
-## Phase 2: Advanced Tools & UI
+## 阶段 2：高级工具与 UI
 
-### Selection System ✅ COMPLETED
+### 选择系统 ✅ 已完成
 - [x] Create selection tool with click detection
 - [x] Implement bounding box calculation for objects
 - [x] Add visual selection indicators (selection handles)
@@ -76,7 +76,7 @@ Build a collaborative whiteboard application similar to FigJam with real-time co
 - [x] Implement hit testing for overlapping objects
 - [x] Add selection state management
 
-### Object Manipulation ✅ COMPLETED
+### 对象操作 ✅ 已完成
 - [x] Move selected objects with mouse drag
 - [x] Delete selected objects (Delete key handler)
 - [x] Resize objects with corner/edge handles (8 handles: corners + edges)
@@ -86,7 +86,7 @@ Build a collaborative whiteboard application similar to FigJam with real-time co
 - [x] Select all objects (Ctrl+A)
 - [x] Rotate objects with rotation handle (implemented in code)
 
-### Styling and Properties ✅ COMPLETED
+### 样式与属性 ✅ 已完成
 - [x] Create color picker component (dual stroke/fill system)
 - [x] Implement fill color for shapes
 - [x] Add stroke color and width controls
@@ -94,7 +94,7 @@ Build a collaborative whiteboard application similar to FigJam with real-time co
 - [x] Style inheritance and default styles
 - [ ] Properties panel for selected objects
 
-### Toolbar and UI ✅ COMPLETED
+### 工具栏与 UI ✅ 已完成
 - [x] Create main toolbar component
 - [x] Add tool selection buttons (pen, shapes, select, etc.)
 - [x] Implement color palette component (dual stroke/fill)
@@ -102,46 +102,46 @@ Build a collaborative whiteboard application similar to FigJam with real-time co
 - [x] Create keyboard shortcuts handler (full implementation)
 - [ ] Add tool options panel (context-sensitive)
 
-## Phase 3: Text and Advanced Features
+## 阶段 3：文本与高级功能
 
-### Text System ✅ COMPLETED
-- [x] Create Text object with editable content
-- [x] Implement text input overlay for editing
-- [x] Add font size controls (basic implementation)
-- [ ] Add font family and style controls
-- [ ] Text alignment options (left, center, right)
-- [ ] Auto-resize text boxes based on content
-- [ ] Text selection and cursor positioning
+### 文本系统 ✅ 已完成
+- [x] 创建可编辑内容的文本对象
+- [x] 实现文本编辑覆盖层
+- [x] 添加字体大小控制（基本实现）
+- [ ] 添加字体系列和样式控制
+- [ ] 文本对齐选项（左对齐/居中/右对齐）
+- [ ] 基于内容自动调整文本框大小
+- [ ] 文本选择和光标定位
 
-### Sticky Notes
-- [ ] Create StickyNote component with background color
-- [ ] Add resizable sticky note functionality
-- [ ] Implement text editing within sticky notes
-- [ ] Color themes for sticky notes
-- [ ] Auto-save sticky note content
+### 便签系统
+- [ ] 创建带背景色的便签组件
+- [ ] 添加可调整大小的便签功能
+- [ ] 在便签内实现文本编辑
+- [ ] 便签的颜色主题
+- [ ] 便签内容自动保存
 
-### Advanced Tools
-- [ ] Arrow tool with arrowhead styles
-- [ ] Connector lines that snap to object edges
-- [ ] Shape library with common symbols
-- [ ] Image insertion and handling
-- [ ] Basic alignment tools (align left/center/right)
+### 高级工具
+- [ ] 带箭头样式的箭头工具
+- [ ] 吸附到对象边缘的连接线
+- [ ] 常用符号的形状库
+- [ ] 图片插入和处理
+- [ ] 基本对齐工具（左对齐/居中/右对齐）
 
-## Phase 4: Data Persistence
+## 阶段 4：数据持久化
 
-### Database Schema Design
-- [ ] Create boards table (id, userId, name, createdAt, updatedAt, settings)
-- [ ] Create board_objects table (id, boardId, type, properties, position, style, zIndex)
-- [ ] Create board_collaborators table (boardId, userId, role, permissions, joinedAt)
-- [ ] Add database migrations for new tables
-- [ ] Create TypeScript types for database schemas
+### 数据库模式设计
+- [ ] 创建看板表 (id, userId, name, createdAt, updatedAt, settings)
+- [ ] 创建看板对象表 (id, boardId, type, properties, position, style, zIndex)
+- [ ] 创建看板协作者表 (boardId, userId, role, permissions, joinedAt)
+- [ ] 为新表添加数据库迁移
+- [ ] 为数据库模式创建 TypeScript 类型
 
-### FigJam Route Setup
+### FigJam 路由设置
 - [ ] Create /app/(authenticated)/figjam/page.tsx for dashboard
 - [ ] Create /app/(authenticated)/figjam/[boardId]/page.tsx for canvas view
 - [ ] Set up basic routing and navigation between dashboard and boards
 
-### Board Management
+### 看板管理
 - [ ] Create new board functionality
 - [ ] List user's boards with thumbnails
 - [ ] Rename board functionality
@@ -149,7 +149,7 @@ Build a collaborative whiteboard application similar to FigJam with real-time co
 - [ ] Duplicate board functionality
 - [ ] Board search and filtering
 
-### Save/Load System
+### 保存/加载系统
 - [ ] Implement serialization for all object types
 - [ ] Create auto-save functionality (debounced, every 2 seconds)
 - [ ] Add manual save indicator and controls
@@ -157,16 +157,16 @@ Build a collaborative whiteboard application similar to FigJam with real-time co
 - [ ] Handle save conflicts and error states
 - [ ] Export board as JSON/image
 
-### Server Actions
+### 服务器操作
 - [ ] Create server action for saving board data
 - [ ] Create server action for loading board data
 - [ ] Add server action for board management operations
 - [ ] Implement proper error handling and validation
 - [ ] Add optimistic updates for better UX
 
-## Phase 5: Real-time Collaboration
+## 阶段 5：实时协作
 
-### WebSocket Infrastructure
+### WebSocket 基础设施
 - [ ] Set up Socket.io or native WebSocket server
 - [ ] Create client-side WebSocket connection management
 - [ ] Create React Context for collaboration state
@@ -174,44 +174,44 @@ Build a collaborative whiteboard application similar to FigJam with real-time co
 - [ ] Add reconnection logic with exponential backoff
 - [ ] Create message queuing for offline scenarios
 
-### Live Collaboration Features
+### 实时协作功能
 - [ ] Real-time object updates (create, modify, delete)
 - [ ] Live cursors showing other users' positions
 - [ ] User presence indicators with avatars
 - [ ] Real-time selection sharing
 - [ ] Collaborative text editing with operational transforms
 
-### Conflict Resolution
+### 冲突解决
 - [ ] Implement last-writer-wins for simple conflicts
 - [ ] Add object locking during editing
 - [ ] Create conflict detection for simultaneous edits
 - [ ] User awareness system (who's editing what)
 - [ ] Graceful handling of network issues
 
-### Sharing and Permissions
+### 分享与权限
 - [ ] Share board by link functionality
 - [ ] User role management (viewer, editor, owner)
 - [ ] Permission checking on all operations
 - [ ] Invite users to board via email
 - [ ] Access control for board visibility
 
-## Phase 6: Polish and Performance
+## 阶段 6：优化与性能
 
-### Performance Optimization
+### 性能优化
 - [ ] Implement canvas object culling for viewport
 - [ ] Add object pooling for frequently created items
 - [ ] Optimize rendering with dirty rectangle updates
 - [ ] Implement virtualization for large object counts
 - [ ] Add performance monitoring and metrics
 
-### Mobile and Touch Support
+### 移动端与触摸支持
 - [ ] Touch gesture handling (pan, zoom, tap)
 - [ ] Mobile-optimized toolbar and UI
 - [ ] Touch-friendly selection handles
 - [ ] Responsive design for different screen sizes
 - [ ] iOS Safari and Android Chrome compatibility
 
-### User Experience Enhancements
+### 用户体验增强
 - [ ] Loading states and skeleton screens
 - [ ] Error boundaries and graceful error handling
 - [ ] Keyboard navigation and accessibility
@@ -219,7 +219,7 @@ Build a collaborative whiteboard application similar to FigJam with real-time co
 - [ ] Tooltips and help system
 - [ ] Onboarding flow for new users
 
-## Technical Stack Integration
+## 技术栈集成
 - **Frontend**: Next.js 15 with React 19
 - **State Management**: React Context (no Zustand)
 - **Canvas**: HTML5 Canvas API with custom drawing engine
@@ -229,7 +229,7 @@ Build a collaborative whiteboard application similar to FigJam with real-time co
 - **UI**: Shadcn UI components for interface elements
 - **Routes**: `/figjam` for dashboard, `/figjam/[boardId]` for canvas
 
-## File Structure Plan
+## 文件结构计划
 ```
 /app/(authenticated)/figjam/
   page.tsx               # FigJam dashboard (list of boards)
@@ -266,7 +266,7 @@ Build a collaborative whiteboard application similar to FigJam with real-time co
   figjam/                # FigJam-specific UI components
 ```
 
-## Questions to Consider
+## 需要考虑的问题
 1. Should we use a canvas library (like Fabric.js) or build from scratch?
 2. What WebSocket solution should we use (Socket.io, native WebSockets, or Pusher)?
 3. How complex should the drawing engine be initially?

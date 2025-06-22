@@ -1,3 +1,5 @@
+// Temporarily disabled ClerkProvider to allow development without authentication setup
+// import { ClerkProvider } from '@clerk/nextjs'
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { TailwindIndicator } from "@/components/utility/tailwind-indicator"
 import type { Metadata } from "next"

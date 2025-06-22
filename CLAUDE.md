@@ -9,7 +9,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 3. Before you begin working, check in with me and I will verify the plan.
 4. Then, begin working on the todo items, making them as complete as you can go.
 5. Finally, add a review section to the todo.md file with a summary of the changes  you made and other relevant information.
-6. 
+
+## Package Management
+
+- Use `pnpm i` instead of `npm install` for faster dependency installation
+- Use `pnpm` for all package management operations when possible for better performance 
 
 ## Commands
 
