@@ -36,16 +36,6 @@ export function CanvasBoard({ boardId }: CanvasBoardProps) {
   const [shapes, setShapes] = useState<Shape[]>([]);
   const [texts, setTexts] = useState<TextElement[]>([]);
   
-  // Use refs to avoid dependencies in callbacks
-  const pathsRef = useRef(paths);
-  const shapesRef = useRef(shapes);
-  const textsRef = useRef(texts);
-  
-  // Update refs when state changes
-  useEffect(() => { pathsRef.current = paths; }, [paths]);
-  useEffect(() => { shapesRef.current = shapes; }, [shapes]);
-  useEffect(() => { textsRef.current = texts; }, [texts]);
-  
   // Drawing state
   const [currentPath, setCurrentPath] = useState<Point[]>([]);
   const [currentShape, setCurrentShape] = useState<Partial<Shape> | null>(null);
@@ -167,22 +157,24 @@ export function CanvasBoard({ boardId }: CanvasBoardProps) {
       const newCtx = setupCanvas(canvas);
       const newEngine = new DrawingEngine(newCtx, viewport);
       setDrawingEngine(newEngine);
+      redraw();
     };
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
-  }, [viewport]);
+  }, [redraw, viewport]);
 
   // Update drawing engine viewport when viewport changes
   useEffect(() => {
     if (drawingEngine) {
       drawingEngine.updateViewport(viewport);
+      redraw();
     }
-  }, [viewport, drawingEngine]);
+  }, [viewport, drawingEngine, redraw]);
 
   // Redraw when state changes
   useEffect(() => {
     redraw();
-  }, [redraw]);
+  }, [redraw, viewport]);
 
   // Mouse event handlers
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
@@ -242,7 +234,7 @@ export function CanvasBoard({ boardId }: CanvasBoardProps) {
         setDebugInfo(`点击: Ctrl=${e.ctrlKey} Cmd=${e.metaKey} 位置(${canvasPoint.x.toFixed(0)},${canvasPoint.y.toFixed(0)})`);
         
         // First check if we're clicking on an object
-        const objectAtPoint = selectionSystem.findObjectAtPoint(canvasPoint, pathsRef.current, shapesRef.current, textsRef.current);
+        const objectAtPoint = selectionSystem.findObjectAtPoint(canvasPoint, paths, shapes, texts);
         
         // Determine if this should be a drag operation
         let shouldStartDrag = false;
@@ -265,9 +257,9 @@ export function CanvasBoard({ boardId }: CanvasBoardProps) {
           // Handle selection changes only if not dragging
           const clickedObject = selectionSystem.handleClick(
             canvasPoint, 
-            pathsRef.current, 
-            shapesRef.current, 
-            textsRef.current, 
+            paths, 
+            shapes, 
+            texts, 
             selectedObjects,
             e.ctrlKey || e.metaKey
           );
@@ -511,7 +503,7 @@ export function CanvasBoard({ boardId }: CanvasBoardProps) {
         }
       }
     } else if (currentTool === "select") {
-      const cursor = selectionSystem.getCursorForPoint(canvasPoint, pathsRef.current, shapesRef.current, textsRef.current, selectedObjects);
+      const cursor = selectionSystem.getCursorForPoint(canvasPoint, paths, shapes, texts, selectedObjects);
       setCursorStyle(cursor);
     }
   }, [
@@ -519,6 +511,9 @@ export function CanvasBoard({ boardId }: CanvasBoardProps) {
     currentTool, 
     currentShape, 
     viewport, 
+    paths, 
+    shapes, 
+    texts, 
     selectionSystem, 
     isDragging, 
     dragStart, 
