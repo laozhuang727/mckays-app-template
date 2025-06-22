@@ -1,6 +1,6 @@
 "use client"
 
-import { Link, Settings2, User, Users } from "lucide-react"
+import { Link, Settings2, User, Users, Pen } from "lucide-react"
 import * as React from "react"
 
 import {
@@ -50,6 +50,17 @@ export function AppSidebar({
       }
     ],
     navMain: [
+      {
+        title: "FigJam",
+        url: "/figjam",
+        icon: Pen,
+        items: [
+          {
+            title: "All Boards",
+            url: "/figjam"
+          }
+        ]
+      },
       {
         title: "Nav Item 1",
         url: "#",
