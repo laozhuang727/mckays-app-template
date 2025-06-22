@@ -31,6 +31,11 @@ export class SelectionSystem {
     this.onSelectionChange([]);
   }
 
+  selectSingle(objectId: string) {
+    const id = String(objectId).trim();
+    this.onSelectionChange([id]);
+  }
+
   isSelected(objectId: string, selectedObjects: string[]): boolean {
     const id = String(objectId).trim();
     return selectedObjects.includes(id);

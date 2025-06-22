@@ -248,17 +248,23 @@ export function CanvasBoard({ boardId }: CanvasBoardProps) {
         if (objectAtPoint) {
           if (!e.ctrlKey && !e.metaKey) {
             // Normal click on object - select it and start drag
-            selectionSystem.onSelectionChange([objectAtPoint]); // Direct single selection
+            selectionSystem.selectSingle(objectAtPoint);
             setIsDragging(true);
             setDragStart(canvasPoint);
             setDebugInfo(`单选并拖拽: ${objectAtPoint}`);
           } else {
             // Ctrl+click behavior
             if (selectedObjects.includes(objectAtPoint)) {
-              // Ctrl+click on already selected object - start drag without changing selection
-              setIsDragging(true);
-              setDragStart(canvasPoint);
-              setDebugInfo(`多选拖拽: ${objectAtPoint} | 选中: ${selectedObjects.join(', ')}`);
+              if (selectedObjects.length > 1) {
+                // Multiple objects selected - remove this one from selection
+                selectionSystem.removeFromSelection(objectAtPoint, selectedObjects);
+                setDebugInfo(`从多选中移除: ${objectAtPoint}`);
+              } else {
+                // Only one object selected - start drag
+                setIsDragging(true);
+                setDragStart(canvasPoint);
+                setDebugInfo(`单选拖拽: ${objectAtPoint}`);
+              }
             } else {
               // Ctrl+click on unselected object - add to selection
               selectionSystem.addToSelection(objectAtPoint, selectedObjects);
