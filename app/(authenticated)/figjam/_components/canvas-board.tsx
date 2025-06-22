@@ -324,6 +324,17 @@ export function CanvasBoard({ boardId }: CanvasBoardProps) {
       const textId = `text-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
       setEditingText({ id: textId, position: canvasPoint });
       setTextInput("");
+    } else if (currentTool === "eraser") {
+      // Eraser tool - delete objects at point and enable dragging for continuous erasing
+      setIsDrawing(true);
+      const objectAtPoint = selectionSystem.findObjectAtPoint(canvasPoint, pathsRef.current, shapesRef.current, textsRef.current);
+      if (objectAtPoint) {
+        // Delete the object that was clicked
+        setPaths(prev => prev.filter(p => p.id !== objectAtPoint));
+        setShapes(prev => prev.filter(s => s.id !== objectAtPoint));
+        setTexts(prev => prev.filter(t => t.id !== objectAtPoint));
+        setDebugInfo(`已删除对象: ${objectAtPoint}`);
+      }
     }
   }, [currentTool, viewport, strokeColor, strokeWidth, fillColor, paths, shapes, texts, selectionSystem, selectedObjects]);
 
@@ -336,6 +347,16 @@ export function CanvasBoard({ boardId }: CanvasBoardProps) {
 
     if (isDrawing && currentTool === "pen") {
       setCurrentPath(prev => [...prev, canvasPoint]);
+    } else if (isDrawing && currentTool === "eraser") {
+      // Continuous erasing while dragging
+      const objectAtPoint = selectionSystem.findObjectAtPoint(canvasPoint, pathsRef.current, shapesRef.current, textsRef.current);
+      if (objectAtPoint) {
+        // Delete the object that was hovered over while dragging
+        setPaths(prev => prev.filter(p => p.id !== objectAtPoint));
+        setShapes(prev => prev.filter(s => s.id !== objectAtPoint));
+        setTexts(prev => prev.filter(t => t.id !== objectAtPoint));
+        setDebugInfo(`拖拽删除对象: ${objectAtPoint}`);
+      }
     } else if (isDrawing && currentShape) {
       let endPoint = canvasPoint;
       
@@ -894,19 +915,95 @@ export function CanvasBoard({ boardId }: CanvasBoardProps) {
             <div className="text-xs text-gray-500 mt-1">{strokeWidth}px</div>
           </div>
 
-          {/* Font Size for Text */}
+          {/* Text Controls */}
           {currentTool === "text" && (
-            <div>
-              <h3 className="text-sm font-medium text-gray-700 mb-2">字体大小</h3>
-              <input
-                type="range"
-                min={8}
-                max={72}
-                value={fontSize}
-                onChange={(e) => setFontSize(Number(e.target.value))}
-                className="w-full"
-              />
-              <div className="text-xs text-gray-500 mt-1">{fontSize}px</div>
+            <div className="space-y-4">
+              {/* Font Size */}
+              <div>
+                <h3 className="text-sm font-medium text-gray-700 mb-2">字体大小</h3>
+                <input
+                  type="range"
+                  min={8}
+                  max={72}
+                  value={fontSize}
+                  onChange={(e) => setFontSize(Number(e.target.value))}
+                  className="w-full"
+                />
+                <div className="text-xs text-gray-500 mt-1">{fontSize}px</div>
+              </div>
+
+              {/* Font Family */}
+              <div>
+                <h3 className="text-sm font-medium text-gray-700 mb-2">字体系列</h3>
+                <select
+                  value={fontFamily}
+                  onChange={(e) => setFontFamily(e.target.value)}
+                  className="w-full p-2 border border-gray-300 rounded text-sm"
+                >
+                  <option value="Arial, sans-serif">Arial</option>
+                  <option value="Georgia, serif">Georgia</option>
+                  <option value="Times New Roman, serif">Times New Roman</option>
+                  <option value="Courier New, monospace">Courier New</option>
+                  <option value="Helvetica, sans-serif">Helvetica</option>
+                  <option value="Verdana, sans-serif">Verdana</option>
+                  <option value="微软雅黑, sans-serif">微软雅黑</option>
+                  <option value="SimHei, sans-serif">黑体</option>
+                </select>
+              </div>
+
+              {/* Font Style */}
+              <div>
+                <h3 className="text-sm font-medium text-gray-700 mb-2">字体样式</h3>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant={fontWeight === "bold" ? "default" : "outline"}
+                    onClick={() => setFontWeight(fontWeight === "bold" ? "normal" : "bold")}
+                    className="flex-1"
+                  >
+                    <strong>B</strong>
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={fontStyle === "italic" ? "default" : "outline"}
+                    onClick={() => setFontStyle(fontStyle === "italic" ? "normal" : "italic")}
+                    className="flex-1"
+                  >
+                    <em>I</em>
+                  </Button>
+                </div>
+              </div>
+
+              {/* Text Alignment */}
+              <div>
+                <h3 className="text-sm font-medium text-gray-700 mb-2">文本对齐</h3>
+                <div className="grid grid-cols-3 gap-1">
+                  <Button
+                    size="sm"
+                    variant={textAlign === "left" ? "default" : "outline"}
+                    onClick={() => setTextAlign("left")}
+                    className="text-xs"
+                  >
+                    左对齐
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={textAlign === "center" ? "default" : "outline"}
+                    onClick={() => setTextAlign("center")}
+                    className="text-xs"
+                  >
+                    居中
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={textAlign === "right" ? "default" : "outline"}
+                    onClick={() => setTextAlign("right")}
+                    className="text-xs"
+                  >
+                    右对齐
+                  </Button>
+                </div>
+              </div>
             </div>
           )}
 

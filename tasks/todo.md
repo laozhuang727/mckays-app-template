@@ -39,79 +39,79 @@
 ## 阶段 1：画布基础与基本绘图
 
 ### 画布基础设施 ✅ 已完成
-- [x] Create canvas component with proper HTML5 Canvas setup
-- [x] Implement canvas sizing and device pixel ratio handling
-- [x] Add viewport transformation matrix for pan/zoom
-- [x] Create coordinate conversion utilities (screen to canvas coords)
-- [x] Set up mouse/touch event handling on canvas
-- [x] Implement pan functionality with mouse drag (via select tool)
-- [x] Add zoom functionality with mouse wheel and pinch gestures
-- [x] Create infinite canvas bounds and viewport management
+- [x] 创建带有HTML5画布设置的画布组件
+- [x] 实现画布大小调整和设备像素比处理
+- [x] 添加用于平移/缩放的视口变换矩阵
+- [x] 创建坐标转换工具（屏幕坐标到画布坐标）
+- [x] 设置画布上的鼠标/触摸事件处理
+- [x] 实现鼠标拖拽平移功能（通过选择工具）
+- [x] 添加鼠标滚轮和双指缩放功能
+- [x] 创建无限画布边界和视口管理
 
 ### 基本绘图引擎 ✅ 已完成
-- [x] Design object model (DrawingPath and Shape interfaces)
-- [x] Create Path object for freehand drawing
-- [x] Create React Context for canvas state management
-- [x] Create React Context for drawing tools state
-- [x] Add basic rendering pipeline for objects
-- [x] Create pen/brush tool with pressure sensitivity
-- [x] Implement stroke smoothing for pen tool
-- [x] Add variable stroke width and color support
-- [x] Create undo/redo system with command pattern
+- [x] 设计对象模型（绘图路径和形状接口）
+- [x] 创建自由绘制的路径对象
+- [x] 创建画布状态管理的React Context
+- [x] 创建绘图工具状态的React Context
+- [x] 添加对象的基本渲染管道
+- [x] 创建带压感的笔刷工具
+- [x] 实现笔刷工具的笔触平滑
+- [x] 添加可变笔触宽度和颜色支持
+- [x] 使用命令模式创建撤销/重做系统
 
 ### 基本形状 ✅ 已完成
-- [x] Create Rectangle shape object (支持Shift键画正方形)
-- [x] Create Circle/Ellipse shape object (默认椭圆，Shift键画正圆)
-- [ ] Create Line shape object (deferred)
-- [x] Implement shape preview while drawing (dashed preview)
-- [x] Add Shift key constraint for perfect shapes (正方形/正圆)
-- [ ] Add snap-to-grid functionality (optional)
+- [x] 创建矩形形状对象（支持Shift键画正方形）
+- [x] 创建圆形/椭圆形状对象（默认椭圆，Shift键画正圆）
+- [ ] 创建直线形状对象（延期实现）
+- [x] 实现绘制时的形状预览（虚线预览）
+- [x] 添加Shift键约束绘制完美形状（正方形/正圆）
+- [ ] 添加网格对齐功能（可选）
 
 ## 阶段 2：高级工具与 UI
 
 ### 选择系统 ✅ 已完成
-- [x] Create selection tool with click detection
-- [x] Implement bounding box calculation for objects
-- [x] Add visual selection indicators (selection handles)
-- [x] Single selection with simple click (无需按键)
-- [x] Multi-select with Ctrl+click
-- [x] Ctrl+click to remove from multi-selection
-- [x] Click empty space to clear selection
-- [x] Implement hit testing for overlapping objects
-- [x] Add selection state management
-- [ ] **框选功能 (Marquee Selection)**: 鼠标拖拽绘制选择框，框选范围内的所有对象
-  - [ ] 实现选择框的可视化矩形（虚线边框）
-  - [ ] 实现矩形边界检测算法（包含/相交模式）
-  - [ ] 支持拖拽方向（从任意角开始的四向框选）
-  - [ ] 与现有多选逻辑集成（Ctrl+框选追加选择）
-  - [ ] 框选过程中的实时视觉反馈
+- [x] 创建带点击检测的选择工具
+- [x] 实现对象的边界框计算
+- [x] 添加可视化选择指示器（选择句柄）
+- [x] 简单点击单选（无需按键）
+- [x] Ctrl+点击多选
+- [x] Ctrl+点击从多选中移除
+- [x] 点击空白区域清除选择
+- [x] 实现重叠对象的碰撞测试
+- [x] 添加选择状态管理
+- [x] **框选功能 (Marquee Selection)**: 鼠标拖拽绘制选择框，框选范围内的所有对象
+  - [x] 实现选择框的可视化矩形（虚线边框）
+  - [x] 实现矩形边界检测算法（包含/相交模式）
+  - [x] 支持拖拽方向（从任意角开始的四向框选）
+  - [x] 与现有多选逻辑集成（Ctrl+框选追加选择）
+  - [x] 框选过程中的实时视觉反馈
 
 ### 对象操作 ✅ 已完成
-- [x] Move single selected object with mouse drag
-- [x] Move multiple selected objects together with mouse drag
-- [x] Delete selected objects (Delete key handler)
-- [x] Resize objects with corner/edge handles (8 handles: corners + edges)
-- [x] Dynamic cursor styles for resize handles
-- [x] Copy/paste functionality (Ctrl+C/V)
-- [x] Duplicate objects (Ctrl+D)
-- [x] Select all objects (Ctrl+A)
-- [x] Rotate objects with rotation handle (implemented in code)
+- [x] 用鼠标拖拽移动单个选中对象
+- [x] 用鼠标拖拽同时移动多个选中对象
+- [x] 删除选中对象（Delete键处理）
+- [x] 用角落/边缘句柄调整对象大小（8个句柄：角落+边缘）
+- [x] 调整句柄的动态光标样式
+- [x] 复制/粘贴功能（Ctrl+C/V）
+- [x] 复制对象（Ctrl+D）
+- [x] 全选对象（Ctrl+A）
+- [x] 用旋转句柄旋转对象（已在代码中实现）
 
 ### 样式与属性 ✅ 已完成
-- [x] Create color picker component (dual stroke/fill system)
-- [x] Implement fill color for shapes
-- [x] Add stroke color and width controls
-- [x] Object layering (bring to front/send to back)
-- [x] Style inheritance and default styles
-- [ ] Properties panel for selected objects
+- [x] 创建颜色选择器组件（双描边/填充系统）
+- [x] 实现形状的填充颜色
+- [x] 添加描边颜色和宽度控制
+- [x] 对象分层（置顶/置底）
+- [x] 样式继承和默认样式
+- [ ] 选中对象的属性面板
 
 ### 工具栏与 UI ✅ 已完成
-- [x] Create main toolbar component
-- [x] Add tool selection buttons (pen, shapes, select, etc.)
-- [x] Implement color palette component (dual stroke/fill)
-- [x] Add stroke width slider
-- [x] Create keyboard shortcuts handler (full implementation)
-- [ ] Add tool options panel (context-sensitive)
+- [x] 创建主工具栏组件
+- [x] 添加工具选择按钮（笔刷、形状、选择等）
+- [x] 实现颜色调色板组件（双描边/填充）
+- [x] 添加描边宽度滑块
+- [x] 创建键盘快捷键处理器（完整实现）
+- [ ] 添加工具选项面板（上下文相关）
 
 ## 阶段 3：文本与高级功能
 
@@ -119,8 +119,9 @@
 - [x] 创建可编辑内容的文本对象
 - [x] 实现文本编辑覆盖层
 - [x] 添加字体大小控制（基本实现）
-- [ ] 添加字体系列和样式控制
-- [ ] 文本对齐选项（左对齐/居中/右对齐）
+- [x] 添加字体系列和样式控制
+- [x] 文本对齐选项（左对齐/居中/右对齐）
+- [x] 字体粗体和斜体样式支持
 - [ ] 基于内容自动调整文本框大小
 - [ ] 文本选择和光标定位
 
@@ -132,6 +133,7 @@
 - [ ] 便签内容自动保存
 
 ### 高级工具
+- [x] 橡皮擦工具（点击删除 + 拖拽连续删除）
 - [ ] 带箭头样式的箭头工具
 - [ ] 吸附到对象边缘的连接线
 - [ ] 常用符号的形状库
@@ -148,141 +150,141 @@
 - [ ] 为数据库模式创建 TypeScript 类型
 
 ### FigJam 路由设置
-- [ ] Create /app/(authenticated)/figjam/page.tsx for dashboard
-- [ ] Create /app/(authenticated)/figjam/[boardId]/page.tsx for canvas view
-- [ ] Set up basic routing and navigation between dashboard and boards
+- [ ] 创建 /app/(authenticated)/figjam/page.tsx 仪表板页面
+- [ ] 创建 /app/(authenticated)/figjam/[boardId]/page.tsx 画布视图页面
+- [ ] 设置仪表板和看板之间的基本路由和导航
 
 ### 看板管理
-- [ ] Create new board functionality
-- [ ] List user's boards with thumbnails
-- [ ] Rename board functionality
-- [ ] Delete board with confirmation
-- [ ] Duplicate board functionality
-- [ ] Board search and filtering
+- [ ] 创建新看板功能
+- [ ] 显示用户看板列表（带缩略图）
+- [ ] 重命名看板功能
+- [ ] 删除看板（带确认）
+- [ ] 复制看板功能
+- [ ] 看板搜索和筛选
 
 ### 保存/加载系统
-- [ ] Implement serialization for all object types
-- [ ] Create auto-save functionality (debounced, every 2 seconds)
-- [ ] Add manual save indicator and controls
-- [ ] Load board data and reconstruct objects
-- [ ] Handle save conflicts and error states
-- [ ] Export board as JSON/image
+- [ ] 实现所有对象类型的序列化
+- [ ] 创建自动保存功能（防抖，每2秒）
+- [ ] 添加手动保存指示器和控制
+- [ ] 加载看板数据并重建对象
+- [ ] 处理保存冲突和错误状态
+- [ ] 导出看板为JSON/图片
 
 ### 服务器操作
-- [ ] Create server action for saving board data
-- [ ] Create server action for loading board data
-- [ ] Add server action for board management operations
-- [ ] Implement proper error handling and validation
-- [ ] Add optimistic updates for better UX
+- [ ] 创建保存看板数据的服务器操作
+- [ ] 创建加载看板数据的服务器操作
+- [ ] 添加看板管理操作的服务器操作
+- [ ] 实现正确的错误处理和验证
+- [ ] 添加乐观更新以提升用户体验
 
 ## 阶段 5：实时协作
 
 ### WebSocket 基础设施
-- [ ] Set up Socket.io or native WebSocket server
-- [ ] Create client-side WebSocket connection management
-- [ ] Create React Context for collaboration state
-- [ ] Implement connection status indicators
-- [ ] Add reconnection logic with exponential backoff
-- [ ] Create message queuing for offline scenarios
+- [ ] 设置Socket.io或原生WebSocket服务器
+- [ ] 创建客户端WebSocket连接管理
+- [ ] 创建协作状态的React Context
+- [ ] 实现连接状态指示器
+- [ ] 添加指数退避的重连逻辑
+- [ ] 创建离线场景的消息队列
 
 ### 实时协作功能
-- [ ] Real-time object updates (create, modify, delete)
-- [ ] Live cursors showing other users' positions
-- [ ] User presence indicators with avatars
-- [ ] Real-time selection sharing
-- [ ] Collaborative text editing with operational transforms
+- [ ] 实时对象更新（创建、修改、删除）
+- [ ] 显示其他用户位置的实时光标
+- [ ] 带头像的用户在线状态指示器
+- [ ] 实时选择状态共享
+- [ ] 协作文本编辑（操作变换）
 
 ### 冲突解决
-- [ ] Implement last-writer-wins for simple conflicts
-- [ ] Add object locking during editing
-- [ ] Create conflict detection for simultaneous edits
-- [ ] User awareness system (who's editing what)
-- [ ] Graceful handling of network issues
+- [ ] 实现简单冲突的最后写入者获胜机制
+- [ ] 添加编辑时的对象锁定
+- [ ] 创建同时编辑的冲突检测
+- [ ] 用户感知系统（谁在编辑什么）
+- [ ] 优雅处理网络问题
 
 ### 分享与权限
-- [ ] Share board by link functionality
-- [ ] User role management (viewer, editor, owner)
-- [ ] Permission checking on all operations
-- [ ] Invite users to board via email
-- [ ] Access control for board visibility
+- [ ] 通过链接分享看板功能
+- [ ] 用户角色管理（查看者、编辑者、所有者）
+- [ ] 所有操作的权限检查
+- [ ] 通过邮件邀请用户到看板
+- [ ] 看板可见性的访问控制
 
 ## 阶段 6：优化与性能
 
 ### 性能优化
-- [ ] Implement canvas object culling for viewport
-- [ ] Add object pooling for frequently created items
-- [ ] Optimize rendering with dirty rectangle updates
-- [ ] Implement virtualization for large object counts
-- [ ] Add performance monitoring and metrics
+- [ ] 实现视口的画布对象剔除
+- [ ] 为频繁创建的项目添加对象池
+- [ ] 用脏矩形更新优化渲染
+- [ ] 为大量对象实现虚拟化
+- [ ] 添加性能监控和指标
 
 ### 移动端与触摸支持
-- [ ] Touch gesture handling (pan, zoom, tap)
-- [ ] Mobile-optimized toolbar and UI
-- [ ] Touch-friendly selection handles
-- [ ] Responsive design for different screen sizes
-- [ ] iOS Safari and Android Chrome compatibility
+- [ ] 触摸手势处理（平移、缩放、点击）
+- [ ] 移动端优化的工具栏和UI
+- [ ] 触摸友好的选择句柄
+- [ ] 不同屏幕尺寸的响应式设计
+- [ ] iOS Safari和Android Chrome兼容性
 
 ### 用户体验增强
-- [ ] Loading states and skeleton screens
-- [ ] Error boundaries and graceful error handling
-- [ ] Keyboard navigation and accessibility
-- [ ] Contextual menus (right-click)
-- [ ] Tooltips and help system
-- [ ] Onboarding flow for new users
+- [ ] 加载状态和骨架屏
+- [ ] 错误边界和优雅错误处理
+- [ ] 键盘导航和可访问性
+- [ ] 上下文菜单（右键点击）
+- [ ] 工具提示和帮助系统
+- [ ] 新用户引导流程
 
 ## 技术栈集成
-- **Frontend**: Next.js 15 with React 19
-- **State Management**: React Context (no Zustand)
-- **Canvas**: HTML5 Canvas API with custom drawing engine
-- **Real-time**: Socket.io or native WebSockets
-- **Database**: PostgreSQL with Drizzle ORM (extend existing schema)
-- **Auth**: Clerk (already integrated)
-- **UI**: Shadcn UI components for interface elements
-- **Routes**: `/figjam` for dashboard, `/figjam/[boardId]` for canvas
+- **前端**: Next.js 15 与 React 19
+- **状态管理**: React Context（不使用Zustand）
+- **画布**: HTML5 Canvas API 与自定义绘图引擎
+- **实时通信**: Socket.io 或原生 WebSockets
+- **数据库**: PostgreSQL 与 Drizzle ORM（扩展现有模式）
+- **认证**: Clerk（已集成）
+- **用户界面**: Shadcn UI 组件用于界面元素
+- **路由**: `/figjam` 用于仪表板，`/figjam/[boardId]` 用于画布
 
 ## 文件结构计划
 ```
 /app/(authenticated)/figjam/
-  page.tsx               # FigJam dashboard (list of boards)
+  page.tsx               # FigJam 仪表板（看板列表）
   [boardId]/
-    page.tsx             # Main canvas view
+    page.tsx             # 主画布视图
   _components/
-    canvas-board.tsx     # Main canvas component
-    toolbar.tsx          # Drawing tools toolbar
-    color-palette.tsx    # Color selection
-    layers-panel.tsx     # Layers management
-    mini-map.tsx         # Navigation minimap
-    board-list.tsx       # Dashboard board grid
+    canvas-board.tsx     # 主画布组件
+    toolbar.tsx          # 绘图工具栏
+    color-palette.tsx    # 颜色选择
+    layers-panel.tsx     # 图层管理
+    mini-map.tsx         # 导航缩略图
+    board-list.tsx       # 仪表板看板网格
     collaboration/
-      live-cursors.tsx   # Real-time cursors
-      user-presence.tsx  # User indicators
+      live-cursors.tsx   # 实时光标
+      user-presence.tsx  # 用户指示器
   _contexts/
-    canvas-context.tsx   # Canvas state management with React Context
-    drawing-context.tsx  # Drawing tool state with React Context
-    collaboration-context.tsx # Real-time sync state
+    canvas-context.tsx   # 使用React Context的画布状态管理
+    drawing-context.tsx  # 使用React Context的绘图工具状态
+    collaboration-context.tsx # 实时同步状态
   _hooks/
-    use-canvas.ts        # Canvas hook using context
-    use-drawing-tools.ts # Drawing tool logic
-    use-collaboration.ts # Real-time sync hook
+    use-canvas.ts        # 使用context的画布hook
+    use-drawing-tools.ts # 绘图工具逻辑
+    use-collaboration.ts # 实时同步hook
   _utils/
-    canvas-utils.ts      # Canvas utilities
-    drawing-engine.ts    # Core drawing logic
+    canvas-utils.ts      # 画布工具函数
+    drawing-engine.ts    # 核心绘图逻辑
 
 /db/schema/
-  boards.ts              # Board metadata (renamed from canvases)
-  board-objects.ts       # Drawing objects
-  board-collaborators.ts # Sharing permissions
+  boards.ts              # 看板元数据（从canvases重命名）
+  board-objects.ts       # 绘图对象
+  board-collaborators.ts # 分享权限
 
 /components/ui/
-  figjam/                # FigJam-specific UI components
+  figjam/                # FigJam特定的UI组件
 ```
 
 ## 需要考虑的问题
-1. Should we use a canvas library (like Fabric.js) or build from scratch?
-2. What WebSocket solution should we use (Socket.io, native WebSockets, or Pusher)?
-3. How complex should the drawing engine be initially?
-4. What's the target performance for number of objects on canvas?
-5. Should we support vector or raster graphics (or both)?
+1. 应该使用画布库（如Fabric.js）还是从头构建？
+2. 应该使用什么WebSocket解决方案（Socket.io、原生WebSockets或Pusher）？
+3. 绘图引擎最初应该有多复杂？
+4. 画布上对象数量的目标性能是什么？
+5. 应该支持矢量图形还是光栅图形（或两者都支持）？
 
 ---
 
@@ -338,32 +340,33 @@
 
 ### 📊 当前状态
 - **Phase 1**: ✅ 100% 完成 - 画布基础和绘图
-- **Phase 2**: ✅ 100% 完成 - 选择和对象操作
-- **Phase 3**: ✅ 90% 完成 - 文本系统和高级功能
+- **Phase 2**: ✅ 100% 完成 - 选择和对象操作（包含框选功能）
+- **Phase 3**: ✅ 95% 完成 - 文本系统和高级功能（橡皮擦、文本样式）
 - **交互优化**: ✅ 100% 完成 - 选择逻辑和Shift键约束
-- **总体进度**: 🎯 约 90% 核心功能完成
+- **总体进度**: 🎯 约 95% 核心功能完成
 
 ### 🎯 下一步建议
 
 #### 立即可做的优化
 1. **属性面板**: 为选中对象显示详细属性编辑器
-2. **更多文本功能**: 字体选择、对齐方式、样式选项
-3. **键盘快捷键**: 工具切换快捷键（1-6 数字键）
+2. **更多文本功能**: 更多字体选择、高级样式选项
+3. **用户体验**: 改进工具提示和帮助文档
 
 #### Phase 4 准备工作
-1. **数据持久化**: 设计数据库 schema，实现保存/加载
-2. **看板管理**: 创建看板列表界面，支持新建/删除/重命名
-3. **协作准备**: WebSocket 基础设施准备
+1. **数据持久化**: 设计数据库schema，实现保存/加载功能
+2. **看板管理**: 创建看板列表界面，支持新建/删除/重命名操作
+3. **协作准备**: 搭建WebSocket基础设施
 
 ### 💡 技术总结
 
 当前实现已经达到了一个功能完整的白板应用的核心要求：
-- ✅ 完整的绘图和编辑体验（笔刷、矩形、椭圆、文本）
-- ✅ 专业级的选择和操作系统（单选、多选、拖拽、缩放、旋转）
-- ✅ 直观的交互模式（无需按键单选、Shift约束、Ctrl多选）
+- ✅ 完整的绘图和编辑体验（笔刷、矩形、椭圆、文本、橡皮擦）
+- ✅ 专业级的选择和操作系统（单选、多选、框选、拖拽、缩放、旋转）
+- ✅ 直观的交互模式（无需按键单选、Shift约束、Ctrl多选、框选）
 - ✅ 稳定的撤销/重做机制（50步历史记录）
 - ✅ 良好的性能和响应速度（无限循环修复）
 - ✅ 完善的键盘快捷键支持（复制、粘贴、删除、全选等）
+- ✅ 高级文本功能（字体系列、粗体、斜体、对齐方式）
 
 **代码质量**: 使用 TypeScript 确保类型安全，React 最佳实践，清晰的组件架构，解决无限渲染问题
 **用户体验**: 符合现代绘图应用的交互标准，支持专业用户的高效操作，直觉式单选多选
@@ -371,4 +374,4 @@
 
 ---
 
-*最后更新: 2025-06-23 - 完成交互优化（椭圆/正圆切换、单选多选逻辑修复、无限循环解决），准备进入 Phase 4 数据持久化阶段*
+*最后更新: 2025-06-23 - 完成核心功能（橡皮擦工具、文本样式完善、框选功能确认、多选操作修复），Phase 3 基本完成，准备进入 Phase 4 数据持久化阶段*
