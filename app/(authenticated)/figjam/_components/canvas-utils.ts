@@ -62,14 +62,7 @@ export const getBounds = (obj: DrawingPath | Shape | TextElement): { x: number; 
       height = diameter;
     }
 
-    console.log('📏 Shape bounds calculation:', {
-      shapeId: obj.id,
-      shapeType: obj.type,
-      startPoint: obj.startPoint,
-      endPoint: obj.endPoint,
-      actualSize: { width: actualWidth, height: actualHeight },
-      finalBounds: { x, y, width, height }
-    });
+    // console.log('📏 Shape bounds calculation:', { shapeId: obj.id, shapeType: obj.type });
 
     return {
       x: x,
@@ -134,12 +127,14 @@ const getHitTestBounds = (shape: Shape): { x: number; y: number; width: number; 
 export const isPointInShape = (point: Point, shape: Shape): boolean => {
   const hitBounds = getHitTestBounds(shape);
 
-  // 统一：只要点在外包围盒内就算命中
+  // 统一的碰撞检测：只要点在外包围盒内就算命中
   if (shape.type === 'rectangle' || shape.type === 'circle') {
-    return point.x >= hitBounds.x &&
+    const result = point.x >= hitBounds.x &&
       point.x <= hitBounds.x + hitBounds.width &&
       point.y >= hitBounds.y &&
       point.y <= hitBounds.y + hitBounds.height;
+    // console.log('🔍 Hit test:', shape.id, result);
+    return result;
   }
   return false;
 };

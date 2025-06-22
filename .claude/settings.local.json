@@ -28,7 +28,8 @@
       "Bash(find:*)",
       "Bash(rm:*)",
       "Bash(pnpm:*)",
-      "Bash(sudo pnpm:*)"
+      "Bash(sudo pnpm:*)",
+      "mcp__sequential-thinking__sequentialthinking"
     ],
     "deny": []
   },

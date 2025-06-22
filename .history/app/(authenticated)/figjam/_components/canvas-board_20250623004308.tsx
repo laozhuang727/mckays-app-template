@@ -89,29 +89,9 @@ export function CanvasBoard({ boardId }: CanvasBoardProps) {
   const [selectionSystem] = useState(new SelectionSystem((newSelection: string[]) => {
     console.log('🔔 SelectionSystem callback triggered with:', newSelection);
     setSelectedObjects(newSelection);
-    // 移除异步延迟，立即重绘以确保状态同步
-    // 注意：这里直接使用newSelection而不是依赖React状态
-    if (drawingEngine && canvasRef.current) {
-      const canvas = canvasRef.current;
-      drawingEngine.renderAll(
-        paths,
-        shapes,
-        texts,
-        newSelection, // 使用最新的选择状态，而不是可能过时的selectedObjects
-        currentPath,
-        currentShape,
-        editingText,
-        textInput,
-        strokeColor,
-        strokeWidth,
-        fontSize,
-        fontFamily,
-        fontWeight,
-        fontStyle,
-        canvas.width / (window.devicePixelRatio || 1),
-        canvas.height / (window.devicePixelRatio || 1)
-      );
-    }
+    setTimeout(() => {
+      redraw();
+    }, 0);
   }));
 
   const colors = [
@@ -293,7 +273,7 @@ export function CanvasBoard({ boardId }: CanvasBoardProps) {
         const deltaX = canvasPoint.x - dragStart.x;
         const deltaY = canvasPoint.y - dragStart.y;
         
-        const newBounds = { ...initialBounds };
+        let newBounds = { ...initialBounds };
         
         // Calculate new bounds based on handle
         switch (resizeHandle) {
