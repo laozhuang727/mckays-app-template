@@ -302,6 +302,33 @@ export class DrawingEngine {
     this.ctx.restore();
   }
 
+  drawMarqueeSelection(startPoint: Point, endPoint: Point) {
+    this.ctx.save();
+    this.ctx.transform(1, 0, 0, 1, this.viewport.offsetX, this.viewport.offsetY);
+    this.ctx.scale(this.viewport.scale, this.viewport.scale);
+
+    // Calculate rectangle bounds (support dragging in all directions)
+    const x = Math.min(startPoint.x, endPoint.x);
+    const y = Math.min(startPoint.y, endPoint.y);
+    const width = Math.abs(endPoint.x - startPoint.x);
+    const height = Math.abs(endPoint.y - startPoint.y);
+
+    // Draw selection rectangle with dashed border
+    this.ctx.strokeStyle = '#3b82f6';
+    this.ctx.lineWidth = 1;
+    this.ctx.globalAlpha = 0.8;
+    this.ctx.setLineDash([5, 5]);
+    this.ctx.strokeRect(x, y, width, height);
+
+    // Fill with semi-transparent background
+    this.ctx.fillStyle = '#3b82f6';
+    this.ctx.globalAlpha = 0.1;
+    this.ctx.fillRect(x, y, width, height);
+
+    this.ctx.setLineDash([]);
+    this.ctx.restore();
+  }
+
   renderAll(
     paths: DrawingPath[],
     shapes: Shape[],
@@ -318,7 +345,8 @@ export class DrawingEngine {
     fontWeight: string,
     fontStyle: string,
     canvasWidth: number,
-    canvasHeight: number
+    canvasHeight: number,
+    marqueeSelection: { startPoint: Point; endPoint: Point; isActive: boolean } | null = null
   ) {
     this.clear();
     this.drawGrid(canvasWidth, canvasHeight);
@@ -401,6 +429,11 @@ export class DrawingEngine {
         fontWeight,
         fontStyle
       );
+    }
+
+    // Draw marquee selection rectangle
+    if (marqueeSelection && marqueeSelection.isActive) {
+      this.drawMarqueeSelection(marqueeSelection.startPoint, marqueeSelection.endPoint);
     }
   }
 }

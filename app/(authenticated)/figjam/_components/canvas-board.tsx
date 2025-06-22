@@ -19,7 +19,8 @@ import {
   Shape, 
   TextElement, 
   CanvasBoardProps, 
-  Viewport 
+  Viewport,
+  MarqueeSelection 
 } from './types';
 import { screenToCanvas, setupCanvas } from './canvas-utils';
 import { DrawingEngine } from './drawing-engine';
@@ -77,6 +78,9 @@ export function CanvasBoard({ boardId }: CanvasBoardProps) {
   const [selectedObjects, setSelectedObjects] = useState<string[]>([]);
   const [debugInfo, setDebugInfo] = useState<string>('');
   
+  // Marquee selection state
+  const [marqueeSelection, setMarqueeSelection] = useState<MarqueeSelection | null>(null);
+  
   // Debug selection state changes
   useEffect(() => {
     console.log('📝 Canvas selectedObjects state changed to:', selectedObjects);
@@ -119,7 +123,8 @@ export function CanvasBoard({ boardId }: CanvasBoardProps) {
         fontWeight,
         fontStyle,
         canvas.width / (window.devicePixelRatio || 1),
-        canvas.height / (window.devicePixelRatio || 1)
+        canvas.height / (window.devicePixelRatio || 1),
+        marqueeSelection
       );
     }
   }));
@@ -149,11 +154,12 @@ export function CanvasBoard({ boardId }: CanvasBoardProps) {
       fontWeight,
       fontStyle,
       canvas.width / (window.devicePixelRatio || 1),
-      canvas.height / (window.devicePixelRatio || 1)
+      canvas.height / (window.devicePixelRatio || 1),
+      marqueeSelection
     );
   }, [
     drawingEngine, paths, shapes, texts, selectedObjects, currentPath, currentShape,
-    editingText, textInput, strokeColor, strokeWidth, fontSize, fontFamily, fontWeight, fontStyle
+    editingText, textInput, strokeColor, strokeWidth, fontSize, fontFamily, fontWeight, fontStyle, marqueeSelection
   ]);
 
   // Initialize canvas and drawing engine
@@ -247,11 +253,19 @@ export function CanvasBoard({ boardId }: CanvasBoardProps) {
         // Determine behavior based on click type and target
         if (objectAtPoint) {
           if (!e.ctrlKey && !e.metaKey) {
-            // Normal click on object - select it and start drag
-            selectionSystem.selectSingle(objectAtPoint);
-            setIsDragging(true);
-            setDragStart(canvasPoint);
-            setDebugInfo(`单选并拖拽: ${objectAtPoint}`);
+            // Normal click on object
+            if (selectedObjects.includes(objectAtPoint)) {
+              // Clicked on already selected object - keep current selection and start drag
+              setIsDragging(true);
+              setDragStart(canvasPoint);
+              setDebugInfo(`多选拖拽: ${selectedObjects.length} 个对象`);
+            } else {
+              // Clicked on unselected object - select it and start drag
+              selectionSystem.selectSingle(objectAtPoint);
+              setIsDragging(true);
+              setDragStart(canvasPoint);
+              setDebugInfo(`单选并拖拽: ${objectAtPoint}`);
+            }
           } else {
             // Ctrl+click behavior
             if (selectedObjects.includes(objectAtPoint)) {
@@ -274,11 +288,23 @@ export function CanvasBoard({ boardId }: CanvasBoardProps) {
         } else {
           // Clicked on empty space
           if (!e.ctrlKey && !e.metaKey) {
-            // Clear selection
+            // Clear selection and start marquee selection
             selectionSystem.clearSelection();
-            setDebugInfo(`清空选择`);
+            setMarqueeSelection({
+              startPoint: canvasPoint,
+              endPoint: canvasPoint,
+              isActive: true
+            });
+            setDebugInfo(`开始框选`);
+          } else {
+            // Ctrl+click on empty space - start additive marquee selection
+            setMarqueeSelection({
+              startPoint: canvasPoint,
+              endPoint: canvasPoint,
+              isActive: true
+            });
+            setDebugInfo(`开始追加框选`);
           }
-          // Ctrl+click on empty space does nothing
         }
       }
     } else if (currentTool === "pen") {
@@ -514,8 +540,16 @@ export function CanvasBoard({ boardId }: CanvasBoardProps) {
         }
       }
     } else if (currentTool === "select") {
-      const cursor = selectionSystem.getCursorForPoint(canvasPoint, pathsRef.current, shapesRef.current, textsRef.current, selectedObjects);
-      setCursorStyle(cursor);
+      // Handle marquee selection dragging
+      if (marqueeSelection && marqueeSelection.isActive) {
+        setMarqueeSelection(prev => prev ? {
+          ...prev,
+          endPoint: canvasPoint
+        } : null);
+      } else {
+        const cursor = selectionSystem.getCursorForPoint(canvasPoint, pathsRef.current, shapesRef.current, textsRef.current, selectedObjects);
+        setCursorStyle(cursor);
+      }
     }
   }, [
     isDrawing, 
@@ -528,10 +562,35 @@ export function CanvasBoard({ boardId }: CanvasBoardProps) {
     selectedObjects, 
     resizeHandle, 
     initialBounds, 
-    initialObjects
+    initialObjects,
+    marqueeSelection
   ]);
 
-  const handleMouseUp = useCallback(() => {
+  const handleMouseUp = useCallback((e?: React.MouseEvent) => {
+    // Handle marquee selection completion
+    if (marqueeSelection && marqueeSelection.isActive && currentTool === "select") {
+      const isAdditive = e ? (e.ctrlKey || e.metaKey) : false;
+      
+      // Only perform selection if marquee has meaningful size
+      const marqueeWidth = Math.abs(marqueeSelection.endPoint.x - marqueeSelection.startPoint.x);
+      const marqueeHeight = Math.abs(marqueeSelection.endPoint.y - marqueeSelection.startPoint.y);
+      
+      if (marqueeWidth > 5 || marqueeHeight > 5) {
+        selectionSystem.selectByMarqueeWithCurrent(
+          marqueeSelection.startPoint,
+          marqueeSelection.endPoint,
+          pathsRef.current,
+          shapesRef.current,
+          textsRef.current,
+          selectedObjects,
+          isAdditive
+        );
+        setDebugInfo(`框选完成: ${isAdditive ? '追加' : '替换'}模式`);
+      }
+      
+      setMarqueeSelection(null);
+    }
+    
     if (isDrawing && currentTool === "pen" && currentPath.length > 1) {
       const newPath: DrawingPath = {
         id: `path-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
@@ -567,7 +626,7 @@ export function CanvasBoard({ boardId }: CanvasBoardProps) {
     setResizeHandle(null);
     setInitialBounds(null);
     setInitialObjects(null);
-  }, [isDrawing, currentTool, currentPath, currentShape, strokeColor, strokeWidth, fillColor, paths, shapes, commandSystem]);
+  }, [isDrawing, currentTool, currentPath, currentShape, strokeColor, strokeWidth, fillColor, paths, shapes, commandSystem, marqueeSelection, selectionSystem, selectedObjects]);
 
   // Complete text input
   const completeTextInput = useCallback(() => {
@@ -745,9 +804,12 @@ export function CanvasBoard({ boardId }: CanvasBoardProps) {
             <h3 className="text-sm font-medium text-gray-700 mb-2">工具</h3>
             {currentTool === "select" && (
               <div className="text-xs text-gray-500 mb-2 p-2 bg-blue-50 rounded">
-                💡 按住 Ctrl/Cmd/Alt + 点击可多选对象
+                💡 框选功能说明：
+                <br/>• 拖拽空白区域进行框选
+                <br/>• 按住 Ctrl/Cmd + 框选追加对象
+                <br/>• 按住 Ctrl/Cmd + 点击多选单个对象
                 <br/>
-                <span className="text-xs text-gray-400">调试: {selectedObjects.length} 个对象已选中</span>
+                <span className="text-xs text-gray-400">当前: {selectedObjects.length} 个对象已选中</span>
               </div>
             )}
             <div className="grid grid-cols-2 gap-2">

@@ -74,11 +74,17 @@
 - [x] Implement bounding box calculation for objects
 - [x] Add visual selection indicators (selection handles)
 - [x] Single selection with simple click (无需按键)
-- [x] Multi-select with Ctrl+click (rectangle selection deferred)
+- [x] Multi-select with Ctrl+click
 - [x] Ctrl+click to remove from multi-selection
 - [x] Click empty space to clear selection
 - [x] Implement hit testing for overlapping objects
 - [x] Add selection state management
+- [ ] **框选功能 (Marquee Selection)**: 鼠标拖拽绘制选择框，框选范围内的所有对象
+  - [ ] 实现选择框的可视化矩形（虚线边框）
+  - [ ] 实现矩形边界检测算法（包含/相交模式）
+  - [ ] 支持拖拽方向（从任意角开始的四向框选）
+  - [ ] 与现有多选逻辑集成（Ctrl+框选追加选择）
+  - [ ] 框选过程中的实时视觉反馈
 
 ### 对象操作 ✅ 已完成
 - [x] Move single selected object with mouse drag

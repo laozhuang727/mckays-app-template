@@ -70,6 +70,12 @@ export interface Viewport {
   scale: number;
 }
 
+export interface MarqueeSelection {
+  startPoint: Point;
+  endPoint: Point;
+  isActive: boolean;
+}
+
 export interface CanvasBoardProps {
   boardId: string;
 }
