@@ -213,7 +213,7 @@ export function CanvasBoard({ boardId }: CanvasBoardProps) {
 
     if (currentTool === "select") {
       // Check if clicking on a resize handle first
-      const handle = selectionSystem.getHandleAtPoint(canvasPoint, paths, shapes, texts);
+      const handle = selectionSystem.getHandleAtPoint(canvasPoint, paths, shapes, texts, selectedObjects);
       
       if (handle) {
         setResizeHandle(handle);
@@ -221,7 +221,7 @@ export function CanvasBoard({ boardId }: CanvasBoardProps) {
         setIsDragging(true);
         
         // Store initial bounds and objects for resizing
-        const bounds = selectionSystem.getSelectionBounds(paths, shapes, texts);
+        const bounds = selectionSystem.getSelectionBounds(paths, shapes, texts, selectedObjects);
         setInitialBounds(bounds);
         setInitialObjects({ paths: [...paths], shapes: [...shapes], texts: [...texts] });
       } else {
@@ -242,6 +242,7 @@ export function CanvasBoard({ boardId }: CanvasBoardProps) {
           paths, 
           shapes, 
           texts, 
+          selectedObjects,
           e.ctrlKey || e.metaKey
         );
         
@@ -452,7 +453,7 @@ export function CanvasBoard({ boardId }: CanvasBoardProps) {
         }
       }
     } else if (currentTool === "select") {
-      const cursor = selectionSystem.getCursorForPoint(canvasPoint, paths, shapes, texts);
+      const cursor = selectionSystem.getCursorForPoint(canvasPoint, paths, shapes, texts, selectedObjects);
       setCursorStyle(cursor);
     }
   }, [
@@ -603,7 +604,7 @@ export function CanvasBoard({ boardId }: CanvasBoardProps) {
               }
             });
             
-            selectionSystem.setSelectedObjects(newIds);
+            setSelectedObjects(newIds);
           }
         } else if (e.key === 'd') {
           e.preventDefault();
@@ -784,6 +785,21 @@ export function CanvasBoard({ boardId }: CanvasBoardProps) {
               <div>总对象: 路径{paths.length} + 形状{shapes.length} + 文本{texts.length}</div>
               <div className="text-green-600">{debugInfo}</div>
             </div>
+            <Button
+              size="sm"
+              className="mb-2"
+              onClick={() => {
+                // 收集所有对象ID
+                const allIds = [
+                  ...paths.map(p => p.id),
+                  ...shapes.map(s => s.id),
+                  ...texts.map(t => t.id)
+                ];
+                setSelectedObjects(allIds);
+              }}
+            >
+              测试：全部高亮
+            </Button>
             {selectedObjects.length > 0 && (
               <div className="flex gap-2 mt-2">
                 <Button
