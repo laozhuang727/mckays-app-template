@@ -244,38 +244,35 @@ export function CanvasBoard({ boardId }: CanvasBoardProps) {
         // First check if we're clicking on an object
         const objectAtPoint = selectionSystem.findObjectAtPoint(canvasPoint, pathsRef.current, shapesRef.current, textsRef.current);
         
-        // Determine if this should be a drag operation
-        let shouldStartDrag = false;
+        // Determine behavior based on click type and target
         if (objectAtPoint) {
           if (!e.ctrlKey && !e.metaKey) {
-            // Normal click - always allow drag
-            shouldStartDrag = true;
-          } else if (selectedObjects.includes(objectAtPoint)) {
-            // Ctrl+click on already selected object - should drag, not deselect
-            shouldStartDrag = true;
+            // Normal click on object - select it and start drag
+            selectionSystem.onSelectionChange([objectAtPoint]); // Direct single selection
+            setIsDragging(true);
+            setDragStart(canvasPoint);
+            setDebugInfo(`单选并拖拽: ${objectAtPoint}`);
+          } else {
+            // Ctrl+click behavior
+            if (selectedObjects.includes(objectAtPoint)) {
+              // Ctrl+click on already selected object - start drag without changing selection
+              setIsDragging(true);
+              setDragStart(canvasPoint);
+              setDebugInfo(`多选拖拽: ${objectAtPoint} | 选中: ${selectedObjects.join(', ')}`);
+            } else {
+              // Ctrl+click on unselected object - add to selection
+              selectionSystem.addToSelection(objectAtPoint, selectedObjects);
+              setDebugInfo(`添加到选择: ${objectAtPoint}`);
+            }
           }
-        }
-        
-        if (shouldStartDrag) {
-          // Start dragging without modifying selection
-          setIsDragging(true);
-          setDragStart(canvasPoint);
-          setDebugInfo(`开始拖拽: ${objectAtPoint} | 选中: ${selectedObjects.join(', ') || '无'}`);
         } else {
-          // Handle selection changes only if not dragging
-          const clickedObject = selectionSystem.handleClick(
-            canvasPoint, 
-            pathsRef.current, 
-            shapesRef.current, 
-            textsRef.current, 
-            selectedObjects,
-            e.ctrlKey || e.metaKey
-          );
-          
-          // Update debug info with click result
-          setTimeout(() => {
-            setDebugInfo(`点击结果: ${clickedObject || '无'} | 选中: ${selectedObjects.join(', ') || '无'}`);
-          }, 10);
+          // Clicked on empty space
+          if (!e.ctrlKey && !e.metaKey) {
+            // Clear selection
+            selectionSystem.clearSelection();
+            setDebugInfo(`清空选择`);
+          }
+          // Ctrl+click on empty space does nothing
         }
       }
     } else if (currentTool === "pen") {
