@@ -29,14 +29,27 @@ interface DrawingPath {
   width: number;
 }
 
+interface Shape {
+  id: string;
+  type: "rectangle" | "circle";
+  startPoint: Point;
+  endPoint: Point;
+  color: string;
+  width: number;
+  fillColor?: string;
+}
+
 export function CanvasBoard({ boardId }: CanvasBoardProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [currentTool, setCurrentTool] = useState<ToolType>("pen");
   const [isDrawing, setIsDrawing] = useState(false);
   const [paths, setPaths] = useState<DrawingPath[]>([]);
+  const [shapes, setShapes] = useState<Shape[]>([]);
   const [currentPath, setCurrentPath] = useState<Point[]>([]);
+  const [currentShape, setCurrentShape] = useState<Partial<Shape> | null>(null);
   const [strokeColor, setStrokeColor] = useState("#000000");
   const [strokeWidth, setStrokeWidth] = useState(2);
+  const [fillColor, setFillColor] = useState("transparent");
   
   const [viewport, setViewport] = useState({
     offsetX: 0,
@@ -129,6 +142,43 @@ export function CanvasBoard({ boardId }: CanvasBoardProps) {
       }
     });
 
+    // Draw shapes
+    shapes.forEach((shape) => {
+      ctx.strokeStyle = shape.color;
+      ctx.lineWidth = shape.width;
+      
+      if (shape.fillColor && shape.fillColor !== "transparent") {
+        ctx.fillStyle = shape.fillColor;
+      }
+
+      if (shape.type === "rectangle") {
+        const width = shape.endPoint.x - shape.startPoint.x;
+        const height = shape.endPoint.y - shape.startPoint.y;
+        
+        ctx.beginPath();
+        ctx.rect(shape.startPoint.x, shape.startPoint.y, width, height);
+        
+        if (shape.fillColor && shape.fillColor !== "transparent") {
+          ctx.fill();
+        }
+        ctx.stroke();
+      } else if (shape.type === "circle") {
+        const centerX = (shape.startPoint.x + shape.endPoint.x) / 2;
+        const centerY = (shape.startPoint.y + shape.endPoint.y) / 2;
+        const radiusX = Math.abs(shape.endPoint.x - shape.startPoint.x) / 2;
+        const radiusY = Math.abs(shape.endPoint.y - shape.startPoint.y) / 2;
+        const radius = Math.min(radiusX, radiusY);
+
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
+        
+        if (shape.fillColor && shape.fillColor !== "transparent") {
+          ctx.fill();
+        }
+        ctx.stroke();
+      }
+    });
+
     // Draw current path
     if (isDrawing && currentPath.length > 1) {
       ctx.strokeStyle = strokeColor;
@@ -139,6 +189,46 @@ export function CanvasBoard({ boardId }: CanvasBoardProps) {
         ctx.lineTo(currentPath[i].x, currentPath[i].y);
       }
       ctx.stroke();
+    }
+
+    // Draw current shape preview
+    if (isDrawing && currentShape && currentShape.startPoint && currentShape.endPoint) {
+      ctx.strokeStyle = strokeColor;
+      ctx.lineWidth = strokeWidth;
+      ctx.setLineDash([5, 5]); // Dashed preview
+
+      if (fillColor && fillColor !== "transparent") {
+        ctx.fillStyle = fillColor;
+      }
+
+      if (currentShape.type === "rectangle") {
+        const width = currentShape.endPoint.x - currentShape.startPoint.x;
+        const height = currentShape.endPoint.y - currentShape.startPoint.y;
+        
+        ctx.beginPath();
+        ctx.rect(currentShape.startPoint.x, currentShape.startPoint.y, width, height);
+        
+        if (fillColor && fillColor !== "transparent") {
+          ctx.fill();
+        }
+        ctx.stroke();
+      } else if (currentShape.type === "circle") {
+        const centerX = (currentShape.startPoint.x + currentShape.endPoint.x) / 2;
+        const centerY = (currentShape.startPoint.y + currentShape.endPoint.y) / 2;
+        const radiusX = Math.abs(currentShape.endPoint.x - currentShape.startPoint.x) / 2;
+        const radiusY = Math.abs(currentShape.endPoint.y - currentShape.startPoint.y) / 2;
+        const radius = Math.min(radiusX, radiusY);
+
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
+        
+        if (fillColor && fillColor !== "transparent") {
+          ctx.fill();
+        }
+        ctx.stroke();
+      }
+
+      ctx.setLineDash([]); // Reset dash
     }
 
     ctx.restore();
@@ -163,9 +253,16 @@ export function CanvasBoard({ boardId }: CanvasBoardProps) {
     const screenPoint = { x: e.clientX - rect.left, y: e.clientY - rect.top };
     const canvasPoint = screenToCanvas(screenPoint);
 
+    setIsDrawing(true);
+
     if (currentTool === "pen") {
-      setIsDrawing(true);
       setCurrentPath([canvasPoint]);
+    } else if (currentTool === "rectangle" || currentTool === "circle") {
+      setCurrentShape({
+        type: currentTool,
+        startPoint: canvasPoint,
+        endPoint: canvasPoint,
+      });
     }
   }, [currentTool, screenToCanvas]);
 
