@@ -27,6 +27,8 @@ interface DrawingPath {
   points: Point[];
   color: string;
   width: number;
+  rotation?: number;
+  zIndex?: number;
 }
 
 interface Shape {
@@ -37,11 +39,25 @@ interface Shape {
   color: string;
   width: number;
   fillColor?: string;
+  rotation?: number;
+  zIndex?: number;
+}
+
+interface TextElement {
+  id: string;
+  type: "text";
+  position: Point;
+  content: string;
+  fontSize: number;
+  fontFamily: string;
+  color: string;
+  rotation?: number;
+  zIndex?: number;
 }
 
 interface DrawableObject {
   id: string;
-  type: "path" | "rectangle" | "circle";
+  type: "path" | "rectangle" | "circle" | "text";
   bounds: {
     x: number;
     y: number;
@@ -53,6 +69,7 @@ interface DrawableObject {
 interface CanvasState {
   paths: DrawingPath[];
   shapes: Shape[];
+  texts: TextElement[];
 }
 
 interface Command {
@@ -67,8 +84,12 @@ export function CanvasBoard({ boardId }: CanvasBoardProps) {
   const [isDrawing, setIsDrawing] = useState(false);
   const [paths, setPaths] = useState<DrawingPath[]>([]);
   const [shapes, setShapes] = useState<Shape[]>([]);
+  const [texts, setTexts] = useState<TextElement[]>([]);
   const [currentPath, setCurrentPath] = useState<Point[]>([]);
   const [currentShape, setCurrentShape] = useState<Partial<Shape> | null>(null);
+  const [editingText, setEditingText] = useState<{ id: string; position: Point } | null>(null);
+  const [textInput, setTextInput] = useState("");
+  const [fontSize, setFontSize] = useState(16);
   const [strokeColor, setStrokeColor] = useState("#000000");
   const [strokeWidth, setStrokeWidth] = useState(2);
   const [fillColor, setFillColor] = useState("transparent");
@@ -79,8 +100,10 @@ export function CanvasBoard({ boardId }: CanvasBoardProps) {
   const [isResizing, setIsResizing] = useState(false);
   const [resizeHandle, setResizeHandle] = useState<string | null>(null);
   const [resizeStart, setResizeStart] = useState<{ point: Point; bounds: any } | null>(null);
+  const [isRotating, setIsRotating] = useState(false);
+  const [rotationStart, setRotationStart] = useState<{ point: Point; center: Point; initialRotation: number } | null>(null);
   const [cursorStyle, setCursorStyle] = useState<string>("default");
-  const [clipboard, setClipboard] = useState<(DrawingPath | Shape)[]>([]);
+  const [clipboard, setClipboard] = useState<(DrawingPath | Shape | TextElement)[]>([]);
   const [history, setHistory] = useState<Command[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
   
@@ -95,8 +118,27 @@ export function CanvasBoard({ boardId }: CanvasBoardProps) {
     "#ffff00", "#ff00ff", "#00ffff", "#ffa500"
   ];
 
+  // Helper function to execute a command and add it to history
+  const executeCommand = useCallback((command: Command) => {
+    command.execute();
+    
+    // Remove any commands after the current index (for branching undo/redo)
+    const newHistory = history.slice(0, historyIndex + 1);
+    newHistory.push(command);
+    
+    // Limit history size to prevent memory issues
+    const MAX_HISTORY = 50;
+    if (newHistory.length > MAX_HISTORY) {
+      newHistory.shift();
+    } else {
+      setHistoryIndex(prev => prev + 1);
+    }
+    
+    setHistory(newHistory);
+  }, [history, historyIndex]);
+
   // Helper function to calculate bounding box for objects
-  const getBounds = useCallback((obj: DrawingPath | Shape): { x: number; y: number; width: number; height: number } => {
+  const getBounds = useCallback((obj: DrawingPath | Shape | TextElement): { x: number; y: number; width: number; height: number } => {
     if ('points' in obj) {
       // Path object
       if (obj.points.length === 0) return { x: 0, y: 0, width: 0, height: 0 };
@@ -114,6 +156,25 @@ export function CanvasBoard({ boardId }: CanvasBoardProps) {
         width: maxX - minX + obj.width,
         height: maxY - minY + obj.width
       };
+    } else if ('content' in obj) {
+      // Text object
+      const canvas = canvasRef.current;
+      if (!canvas) return { x: obj.position.x, y: obj.position.y, width: 100, height: obj.fontSize };
+      
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return { x: obj.position.x, y: obj.position.y, width: 100, height: obj.fontSize };
+      
+      ctx.font = `${obj.fontSize}px ${obj.fontFamily}`;
+      const metrics = ctx.measureText(obj.content);
+      const width = metrics.width;
+      const height = obj.fontSize;
+      
+      return {
+        x: obj.position.x,
+        y: obj.position.y - height,
+        width,
+        height
+      };
     } else {
       // Shape object
       const minX = Math.min(obj.startPoint.x, obj.endPoint.x);
@@ -126,7 +187,7 @@ export function CanvasBoard({ boardId }: CanvasBoardProps) {
   }, []);
 
   // Helper function to check if a point is inside an object
-  const isPointInObject = useCallback((point: Point, obj: DrawingPath | Shape): boolean => {
+  const isPointInObject = useCallback((point: Point, obj: DrawingPath | Shape | TextElement): boolean => {
     const bounds = getBounds(obj);
     return point.x >= bounds.x && 
            point.x <= bounds.x + bounds.width && 
@@ -135,12 +196,18 @@ export function CanvasBoard({ boardId }: CanvasBoardProps) {
   }, [getBounds]);
 
   // Helper function to move an object by offset
-  const moveObject = useCallback((obj: DrawingPath | Shape, offset: Point): DrawingPath | Shape => {
+  const moveObject = useCallback((obj: DrawingPath | Shape | TextElement, offset: Point): DrawingPath | Shape | TextElement => {
     if ('points' in obj) {
       // Move path
       return {
         ...obj,
         points: obj.points.map(p => ({ x: p.x + offset.x, y: p.y + offset.y }))
+      };
+    } else if ('content' in obj) {
+      // Move text
+      return {
+        ...obj,
+        position: { x: obj.position.x + offset.x, y: obj.position.y + offset.y }
       };
     } else {
       // Move shape
@@ -152,10 +219,11 @@ export function CanvasBoard({ boardId }: CanvasBoardProps) {
     }
   }, []);
 
-  // Helper function to check if point is on a resize handle
+  // Helper function to check if point is on a resize handle or rotation handle
   const getResizeHandle = useCallback((point: Point, bounds: any): string | null => {
     const handleSize = 8 / viewport.scale;
     const tolerance = handleSize / 2;
+    const rotationHandleDistance = 20 / viewport.scale; // Distance of rotation handle from object
     
     const handles = [
       { name: 'nw', x: bounds.x, y: bounds.y },
@@ -165,7 +233,8 @@ export function CanvasBoard({ boardId }: CanvasBoardProps) {
       { name: 'n', x: bounds.x + bounds.width / 2, y: bounds.y },
       { name: 's', x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height },
       { name: 'w', x: bounds.x, y: bounds.y + bounds.height / 2 },
-      { name: 'e', x: bounds.x + bounds.width, y: bounds.y + bounds.height / 2 }
+      { name: 'e', x: bounds.x + bounds.width, y: bounds.y + bounds.height / 2 },
+      { name: 'rotate', x: bounds.x + bounds.width / 2, y: bounds.y - rotationHandleDistance }
     ];
     
     for (const handle of handles) {
@@ -193,6 +262,8 @@ export function CanvasBoard({ boardId }: CanvasBoardProps) {
       case 'w':
       case 'e':
         return 'ew-resize';
+      case 'rotate':
+        return 'grab';
       default:
         return 'default';
     }
@@ -241,24 +312,57 @@ export function CanvasBoard({ boardId }: CanvasBoardProps) {
     };
   }, []);
 
-  // Helper function to execute a command and add it to history
-  const executeCommand = useCallback((command: Command) => {
-    command.execute();
-    
-    // Remove any commands after the current index (for branching undo/redo)
-    const newHistory = history.slice(0, historyIndex + 1);
-    newHistory.push(command);
-    
-    // Limit history size to prevent memory issues
-    const MAX_HISTORY = 50;
-    if (newHistory.length > MAX_HISTORY) {
-      newHistory.shift();
-    } else {
-      setHistoryIndex(prev => prev + 1);
+  // Helper function to rotate an object
+  // Text completion functions
+  const completeTextInput = useCallback(() => {
+    if (editingText && textInput.trim()) {
+      const newText: TextElement = {
+        id: editingText.id,
+        type: "text",
+        position: editingText.position,
+        content: textInput.trim(),
+        fontSize: fontSize,
+        fontFamily: "Arial, sans-serif",
+        color: strokeColor
+      };
+      
+      const addTextCommand: Command = {
+        execute: () => {
+          setTexts(prev => [...prev, newText]);
+        },
+        undo: () => {
+          setTexts(prev => prev.filter(t => t.id !== newText.id));
+        },
+        description: "Add text"
+      };
+      
+      executeCommand(addTextCommand);
     }
     
-    setHistory(newHistory);
-  }, [history, historyIndex]);
+    setEditingText(null);
+    setTextInput("");
+  }, [editingText, textInput, fontSize, strokeColor, executeCommand]);
+  
+  const cancelTextInput = useCallback(() => {
+    setEditingText(null);
+    setTextInput("");
+  }, []);
+
+  const rotateObject = useCallback((obj: Shape | DrawingPath, center: Point, currentPoint: Point, initialAngle: number): Shape | DrawingPath => {
+    // Calculate current angle from center to current point
+    const currentAngle = Math.atan2(currentPoint.y - center.y, currentPoint.x - center.x);
+    // Calculate rotation delta
+    const rotation = currentAngle - initialAngle;
+    
+    // Add rotation to the object (in radians)
+    const currentRotation = obj.rotation || 0;
+    const newRotation = currentRotation + rotation;
+    
+    return {
+      ...obj,
+      rotation: newRotation
+    };
+  }, []);
 
   // Helper function to undo the last command
   const undo = useCallback(() => {
@@ -281,32 +385,36 @@ export function CanvasBoard({ boardId }: CanvasBoardProps) {
   const createStateSnapshot = useCallback((): CanvasState => {
     return {
       paths: [...paths],
-      shapes: [...shapes]
+      shapes: [...shapes],
+      texts: [...texts]
     };
-  }, [paths, shapes]);
+  }, [paths, shapes, texts]);
 
   // Helper function to restore state from snapshot
   const restoreState = useCallback((state: CanvasState) => {
     setPaths(state.paths);
     setShapes(state.shapes);
+    setTexts(state.texts);
   }, []);
 
   // Helper function to copy selected objects to clipboard
   const copySelectedObjects = useCallback(() => {
     if (selectedObjects.length === 0) return;
     
-    const objectsToCopy: (DrawingPath | Shape)[] = [];
+    const objectsToCopy: (DrawingPath | Shape | TextElement)[] = [];
     
     selectedObjects.forEach(id => {
       const path = paths.find(p => p.id === id);
       const shape = shapes.find(s => s.id === id);
+      const text = texts.find(t => t.id === id);
       
       if (path) objectsToCopy.push(path);
       if (shape) objectsToCopy.push(shape);
+      if (text) objectsToCopy.push(text);
     });
     
     setClipboard(objectsToCopy);
-  }, [selectedObjects, paths, shapes]);
+  }, [selectedObjects, paths, shapes, texts]);
 
   // Helper function to paste objects from clipboard
   const pasteObjects = useCallback(() => {
@@ -327,6 +435,14 @@ export function CanvasBoard({ boardId }: CanvasBoardProps) {
           points: obj.points.map(p => ({ x: p.x + offset.x, y: p.y + offset.y }))
         };
         setPaths(prev => [...prev, newPath]);
+      } else if ('content' in obj) {
+        // Text object
+        const newText: TextElement = {
+          ...obj,
+          id: newId,
+          position: { x: obj.position.x + offset.x, y: obj.position.y + offset.y }
+        };
+        setTexts(prev => [...prev, newText]);
       } else {
         // Shape object
         const newShape: Shape = {
@@ -348,6 +464,132 @@ export function CanvasBoard({ boardId }: CanvasBoardProps) {
     copySelectedObjects();
     pasteObjects();
   }, [copySelectedObjects, pasteObjects]);
+
+  // Helper function to get the maximum z-index
+  const getMaxZIndex = useCallback((): number => {
+    const allZIndices = [
+      ...paths.map(p => p.zIndex || 0),
+      ...shapes.map(s => s.zIndex || 0),
+      ...texts.map(t => t.zIndex || 0)
+    ];
+    return Math.max(0, ...allZIndices);
+  }, [paths, shapes, texts]);
+
+  // Helper function to get the minimum z-index
+  const getMinZIndex = useCallback((): number => {
+    const allZIndices = [
+      ...paths.map(p => p.zIndex || 0),
+      ...shapes.map(s => s.zIndex || 0),
+      ...texts.map(t => t.zIndex || 0)
+    ];
+    return Math.min(0, ...allZIndices);
+  }, [paths, shapes, texts]);
+
+  // Helper function to bring selected objects to front
+  const bringToFront = useCallback(() => {
+    if (selectedObjects.length === 0) return;
+    
+    const maxZ = getMaxZIndex();
+    const newZIndex = maxZ + 1;
+    
+    const bringToFrontCommand: Command = {
+      execute: () => {
+        setPaths(prev => prev.map(path => 
+          selectedObjects.includes(path.id) 
+            ? { ...path, zIndex: newZIndex }
+            : path
+        ));
+        
+        setShapes(prev => prev.map(shape => 
+          selectedObjects.includes(shape.id) 
+            ? { ...shape, zIndex: newZIndex }
+            : shape
+        ));
+        
+        setTexts(prev => prev.map(text => 
+          selectedObjects.includes(text.id) 
+            ? { ...text, zIndex: newZIndex }
+            : text
+        ));
+      },
+      undo: () => {
+        // Restore original z-indices (simplified implementation)
+        setPaths(prev => prev.map(path => 
+          selectedObjects.includes(path.id) 
+            ? { ...path, zIndex: path.zIndex ? path.zIndex - 1 : 0 }
+            : path
+        ));
+        
+        setShapes(prev => prev.map(shape => 
+          selectedObjects.includes(shape.id) 
+            ? { ...shape, zIndex: shape.zIndex ? shape.zIndex - 1 : 0 }
+            : shape
+        ));
+        
+        setTexts(prev => prev.map(text => 
+          selectedObjects.includes(text.id) 
+            ? { ...text, zIndex: text.zIndex ? text.zIndex - 1 : 0 }
+            : text
+        ));
+      },
+      description: `Bring ${selectedObjects.length} object(s) to front`
+    };
+    
+    executeCommand(bringToFrontCommand);
+  }, [selectedObjects, getMaxZIndex, executeCommand]);
+
+  // Helper function to send selected objects to back
+  const sendToBack = useCallback(() => {
+    if (selectedObjects.length === 0) return;
+    
+    const minZ = getMinZIndex();
+    const newZIndex = minZ - 1;
+    
+    const sendToBackCommand: Command = {
+      execute: () => {
+        setPaths(prev => prev.map(path => 
+          selectedObjects.includes(path.id) 
+            ? { ...path, zIndex: newZIndex }
+            : path
+        ));
+        
+        setShapes(prev => prev.map(shape => 
+          selectedObjects.includes(shape.id) 
+            ? { ...shape, zIndex: newZIndex }
+            : shape
+        ));
+        
+        setTexts(prev => prev.map(text => 
+          selectedObjects.includes(text.id) 
+            ? { ...text, zIndex: newZIndex }
+            : text
+        ));
+      },
+      undo: () => {
+        // Restore original z-indices (simplified implementation)
+        setPaths(prev => prev.map(path => 
+          selectedObjects.includes(path.id) 
+            ? { ...path, zIndex: path.zIndex ? path.zIndex + 1 : 0 }
+            : path
+        ));
+        
+        setShapes(prev => prev.map(shape => 
+          selectedObjects.includes(shape.id) 
+            ? { ...shape, zIndex: shape.zIndex ? shape.zIndex + 1 : 0 }
+            : shape
+        ));
+        
+        setTexts(prev => prev.map(text => 
+          selectedObjects.includes(text.id) 
+            ? { ...text, zIndex: text.zIndex ? text.zIndex + 1 : 0 }
+            : text
+        ));
+      },
+      description: `Send ${selectedObjects.length} object(s) to back`
+    };
+    
+    executeCommand(sendToBackCommand);
+  }, [selectedObjects, getMinZIndex, executeCommand]);
 
   const tools = [
     { type: "select" as ToolType, icon: MousePointer2, label: "Select" },
@@ -415,108 +657,178 @@ export function CanvasBoard({ boardId }: CanvasBoardProps) {
       ctx.stroke();
     }
 
-    // Draw paths
-    paths.forEach((path) => {
-      if (path.points.length > 1) {
-        const isSelected = selectedObjects.includes(path.id);
+    // Create sorted arrays by z-index
+    const sortedPaths = [...paths].sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0));
+    const sortedShapes = [...shapes].sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0));
+    const sortedTexts = [...texts].sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0));
+    
+    // Create combined sorted array with object types
+    const allObjects: Array<{ obj: DrawingPath | Shape | TextElement; objType: 'path' | 'shape' | 'text' }> = [
+      ...sortedPaths.map(p => ({ obj: p, objType: 'path' as const })),
+      ...sortedShapes.map(s => ({ obj: s, objType: 'shape' as const })),
+      ...sortedTexts.map(t => ({ obj: t, objType: 'text' as const }))
+    ].sort((a, b) => (a.obj.zIndex || 0) - (b.obj.zIndex || 0));
+
+    allObjects.forEach(({ obj, objType }) => {
+      if (objType === 'path') {
+        const path = obj as DrawingPath;
+        if (path.points.length > 1) {
+          const isSelected = selectedObjects.includes(path.id);
+          const offset = isSelected && isDragging ? dragOffset : { x: 0, y: 0 };
+          
+          ctx.strokeStyle = path.color;
+          ctx.lineWidth = path.width;
+          ctx.globalAlpha = isSelected && isDragging ? 0.7 : 1;
+          
+          ctx.beginPath();
+          ctx.moveTo(path.points[0].x + offset.x, path.points[0].y + offset.y);
+          for (let i = 1; i < path.points.length; i++) {
+            ctx.lineTo(path.points[i].x + offset.x, path.points[i].y + offset.y);
+          }
+          ctx.stroke();
+          ctx.globalAlpha = 1;
+
+          // Draw selection indicator for paths
+          if (isSelected) {
+            const originalPath = path;
+            const previewPath = isDragging ? moveObject(originalPath, offset) as DrawingPath : originalPath;
+            const bounds = getBounds(previewPath);
+            
+            ctx.strokeStyle = "#007bff";
+            ctx.lineWidth = 2 / viewport.scale;
+            ctx.setLineDash([5 / viewport.scale, 5 / viewport.scale]);
+            ctx.strokeRect(bounds.x, bounds.y, bounds.width, bounds.height);
+            ctx.setLineDash([]);
+          }
+        }
+      } else if (objType === 'shape') {
+        const shape = obj as Shape;
+        const isSelected = selectedObjects.includes(shape.id);
         const offset = isSelected && isDragging ? dragOffset : { x: 0, y: 0 };
+        const previewShape = isSelected && isDragging ? moveObject(shape, offset) as Shape : shape;
         
-        ctx.strokeStyle = path.color;
-        ctx.lineWidth = path.width;
+        ctx.strokeStyle = shape.color;
+        ctx.lineWidth = shape.width;
         ctx.globalAlpha = isSelected && isDragging ? 0.7 : 1;
         
-        ctx.beginPath();
-        ctx.moveTo(path.points[0].x + offset.x, path.points[0].y + offset.y);
-        for (let i = 1; i < path.points.length; i++) {
-          ctx.lineTo(path.points[i].x + offset.x, path.points[i].y + offset.y);
+        if (shape.fillColor && shape.fillColor !== "transparent") {
+          ctx.fillStyle = shape.fillColor;
         }
-        ctx.stroke();
+
+        if (shape.type === "rectangle") {
+          const width = previewShape.endPoint.x - previewShape.startPoint.x;
+          const height = previewShape.endPoint.y - previewShape.startPoint.y;
+          
+          ctx.beginPath();
+          ctx.rect(previewShape.startPoint.x, previewShape.startPoint.y, width, height);
+          
+          if (shape.fillColor && shape.fillColor !== "transparent") {
+            ctx.fill();
+          }
+          ctx.stroke();
+        } else if (shape.type === "circle") {
+          const centerX = (previewShape.startPoint.x + previewShape.endPoint.x) / 2;
+          const centerY = (previewShape.startPoint.y + previewShape.endPoint.y) / 2;
+          const radiusX = Math.abs(previewShape.endPoint.x - previewShape.startPoint.x) / 2;
+          const radiusY = Math.abs(previewShape.endPoint.y - previewShape.startPoint.y) / 2;
+          const radius = Math.min(radiusX, radiusY);
+
+          ctx.beginPath();
+          ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
+          
+          if (shape.fillColor && shape.fillColor !== "transparent") {
+            ctx.fill();
+          }
+          ctx.stroke();
+        }
+        
         ctx.globalAlpha = 1;
 
-        // Draw selection indicator for paths
+        // Draw selection indicator for shapes
         if (isSelected) {
-          const originalPath = path;
-          const previewPath = isDragging ? moveObject(originalPath, offset) as DrawingPath : originalPath;
-          const bounds = getBounds(previewPath);
-          
+          const bounds = getBounds(previewShape);
           ctx.strokeStyle = "#007bff";
           ctx.lineWidth = 2 / viewport.scale;
           ctx.setLineDash([5 / viewport.scale, 5 / viewport.scale]);
           ctx.strokeRect(bounds.x, bounds.y, bounds.width, bounds.height);
           ctx.setLineDash([]);
-        }
-      }
-    });
-
-    // Draw shapes
-    shapes.forEach((shape) => {
-      const isSelected = selectedObjects.includes(shape.id);
-      const offset = isSelected && isDragging ? dragOffset : { x: 0, y: 0 };
-      const previewShape = isSelected && isDragging ? moveObject(shape, offset) as Shape : shape;
-      
-      ctx.strokeStyle = shape.color;
-      ctx.lineWidth = shape.width;
-      ctx.globalAlpha = isSelected && isDragging ? 0.7 : 1;
-      
-      if (shape.fillColor && shape.fillColor !== "transparent") {
-        ctx.fillStyle = shape.fillColor;
-      }
-
-      if (shape.type === "rectangle") {
-        const width = previewShape.endPoint.x - previewShape.startPoint.x;
-        const height = previewShape.endPoint.y - previewShape.startPoint.y;
-        
-        ctx.beginPath();
-        ctx.rect(previewShape.startPoint.x, previewShape.startPoint.y, width, height);
-        
-        if (shape.fillColor && shape.fillColor !== "transparent") {
+          
+          // Draw selection handles (8 handles: 4 corners + 4 edges)
+          const handleSize = 8 / viewport.scale;
+          ctx.fillStyle = "#007bff";
+          const handles = [
+            { x: bounds.x, y: bounds.y }, // nw
+            { x: bounds.x + bounds.width, y: bounds.y }, // ne
+            { x: bounds.x + bounds.width, y: bounds.y + bounds.height }, // se
+            { x: bounds.x, y: bounds.y + bounds.height }, // sw
+            { x: bounds.x + bounds.width / 2, y: bounds.y }, // n
+            { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height }, // s
+            { x: bounds.x, y: bounds.y + bounds.height / 2 }, // w
+            { x: bounds.x + bounds.width, y: bounds.y + bounds.height / 2 } // e
+          ];
+          
+          handles.forEach(handle => {
+            ctx.fillRect(handle.x - handleSize/2, handle.y - handleSize/2, handleSize, handleSize);
+          });
+          
+          // Draw rotation handle
+          const rotationHandleDistance = 20 / viewport.scale;
+          const rotationHandle = {
+            x: bounds.x + bounds.width / 2,
+            y: bounds.y - rotationHandleDistance
+          };
+          
+          // Draw line from top center to rotation handle
+          ctx.strokeStyle = "#007bff";
+          ctx.lineWidth = 1 / viewport.scale;
+          ctx.beginPath();
+          ctx.moveTo(bounds.x + bounds.width / 2, bounds.y);
+          ctx.lineTo(rotationHandle.x, rotationHandle.y);
+          ctx.stroke();
+          
+          // Draw rotation handle circle
+          ctx.fillStyle = "#007bff";
+          ctx.beginPath();
+          ctx.arc(rotationHandle.x, rotationHandle.y, handleSize / 2, 0, 2 * Math.PI);
           ctx.fill();
+          ctx.strokeStyle = "white";
+          ctx.lineWidth = 1 / viewport.scale;
+          ctx.stroke();
         }
-        ctx.stroke();
-      } else if (shape.type === "circle") {
-        const centerX = (previewShape.startPoint.x + previewShape.endPoint.x) / 2;
-        const centerY = (previewShape.startPoint.y + previewShape.endPoint.y) / 2;
-        const radiusX = Math.abs(previewShape.endPoint.x - previewShape.startPoint.x) / 2;
-        const radiusY = Math.abs(previewShape.endPoint.y - previewShape.startPoint.y) / 2;
-        const radius = Math.min(radiusX, radiusY);
-
-        ctx.beginPath();
-        ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
+      } else if (objType === 'text') {
+        const text = obj as TextElement;
+        const isSelected = selectedObjects.includes(text.id);
+        const offset = isSelected && isDragging ? dragOffset : { x: 0, y: 0 };
+        const previewText = isSelected && isDragging ? moveObject(text, offset) as TextElement : text;
         
-        if (shape.fillColor && shape.fillColor !== "transparent") {
-          ctx.fill();
+        ctx.font = `${text.fontSize}px ${text.fontFamily}`;
+        ctx.fillStyle = text.color;
+        ctx.textBaseline = 'top';
+        ctx.fillText(previewText.content, previewText.position.x, previewText.position.y);
+        
+        // Draw selection indicator for texts
+        if (isSelected) {
+          const bounds = getBounds(previewText);
+          ctx.strokeStyle = "#007bff";
+          ctx.lineWidth = 2 / viewport.scale;
+          ctx.setLineDash([5 / viewport.scale, 5 / viewport.scale]);
+          ctx.strokeRect(bounds.x, bounds.y, bounds.width, bounds.height);
+          ctx.setLineDash([]);
+          
+          // Draw selection handles
+          const handleSize = 8 / viewport.scale;
+          ctx.fillStyle = "#007bff";
+          const handles = [
+            { x: bounds.x, y: bounds.y }, // nw
+            { x: bounds.x + bounds.width, y: bounds.y }, // ne
+            { x: bounds.x + bounds.width, y: bounds.y + bounds.height }, // se
+            { x: bounds.x, y: bounds.y + bounds.height }, // sw
+          ];
+          
+          handles.forEach(handle => {
+            ctx.fillRect(handle.x - handleSize/2, handle.y - handleSize/2, handleSize, handleSize);
+          });
         }
-        ctx.stroke();
-      }
-      
-      ctx.globalAlpha = 1;
-
-      // Draw selection indicator for shapes
-      if (isSelected) {
-        const bounds = getBounds(previewShape);
-        ctx.strokeStyle = "#007bff";
-        ctx.lineWidth = 2 / viewport.scale;
-        ctx.setLineDash([5 / viewport.scale, 5 / viewport.scale]);
-        ctx.strokeRect(bounds.x, bounds.y, bounds.width, bounds.height);
-        ctx.setLineDash([]);
-        
-        // Draw selection handles (8 handles: 4 corners + 4 edges)
-        const handleSize = 8 / viewport.scale;
-        ctx.fillStyle = "#007bff";
-        const handles = [
-          { x: bounds.x, y: bounds.y }, // nw
-          { x: bounds.x + bounds.width, y: bounds.y }, // ne
-          { x: bounds.x + bounds.width, y: bounds.y + bounds.height }, // se
-          { x: bounds.x, y: bounds.y + bounds.height }, // sw
-          { x: bounds.x + bounds.width / 2, y: bounds.y }, // n
-          { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height }, // s
-          { x: bounds.x, y: bounds.y + bounds.height / 2 }, // w
-          { x: bounds.x + bounds.width, y: bounds.y + bounds.height / 2 } // e
-        ];
-        
-        handles.forEach(handle => {
-          ctx.fillRect(handle.x - handleSize/2, handle.y - handleSize/2, handleSize, handleSize);
-        });
       }
     });
 
@@ -573,7 +885,7 @@ export function CanvasBoard({ boardId }: CanvasBoardProps) {
     }
 
     ctx.restore();
-  }, [paths, shapes, currentPath, currentShape, isDrawing, strokeColor, strokeWidth, fillColor, viewport, selectedObjects, getBounds, isDragging, dragOffset, moveObject]);
+  }, [paths, shapes, texts, currentPath, currentShape, isDrawing, strokeColor, strokeWidth, fillColor, viewport, selectedObjects, getBounds, isDragging, dragOffset, moveObject]);
 
   const screenToCanvas = useCallback((screenPoint: Point): Point => {
     const canvas = canvasRef.current;
@@ -602,7 +914,7 @@ export function CanvasBoard({ boardId }: CanvasBoardProps) {
       if (selectedObjects.length === 1) {
         // Only allow resizing when single object is selected
         const selectedId = selectedObjects[0];
-        const obj = [...shapes, ...paths].find(o => o.id === selectedId);
+        const obj = [...shapes, ...paths, ...texts].find(o => o.id === selectedId);
         
         if (obj && !('points' in obj)) { // Only shapes can be resized for now
           const bounds = getBounds(obj);
@@ -614,22 +926,48 @@ export function CanvasBoard({ boardId }: CanvasBoardProps) {
       }
       
       if (resizeHandleFound && targetObject) {
-        // Start resizing
-        setIsResizing(true);
-        setResizeHandle(resizeHandleFound);
-        setResizeStart({
-          point: canvasPoint,
-          bounds: getBounds(targetObject)
-        });
+        if (resizeHandleFound === 'rotate') {
+          // Start rotating
+          const bounds = getBounds(targetObject);
+          const center = {
+            x: bounds.x + bounds.width / 2,
+            y: bounds.y + bounds.height / 2
+          };
+          const initialAngle = Math.atan2(canvasPoint.y - center.y, canvasPoint.x - center.x);
+          setIsRotating(true);
+          setRotationStart({
+            point: canvasPoint,
+            center,
+            initialRotation: targetObject.rotation || 0
+          });
+        } else {
+          // Start resizing
+          setIsResizing(true);
+          setResizeHandle(resizeHandleFound);
+          setResizeStart({
+            point: canvasPoint,
+            bounds: getBounds(targetObject)
+          });
+        }
       } else {
         // Find object under cursor (search from top to bottom)
         let clickedObject: string | null = null;
         
-        // Check shapes first (they're drawn on top)
-        for (let i = shapes.length - 1; i >= 0; i--) {
-          if (isPointInObject(canvasPoint, shapes[i])) {
-            clickedObject = shapes[i].id;
+        // Check texts first (they're drawn on top)
+        for (let i = texts.length - 1; i >= 0; i--) {
+          if (isPointInObject(canvasPoint, texts[i])) {
+            clickedObject = texts[i].id;
             break;
+          }
+        }
+        
+        // If no text clicked, check shapes
+        if (!clickedObject) {
+          for (let i = shapes.length - 1; i >= 0; i--) {
+            if (isPointInObject(canvasPoint, shapes[i])) {
+              clickedObject = shapes[i].id;
+              break;
+            }
           }
         }
         
@@ -682,6 +1020,14 @@ export function CanvasBoard({ boardId }: CanvasBoardProps) {
           startPoint: canvasPoint,
           endPoint: canvasPoint,
         });
+      } else if (currentTool === "text") {
+        // Start text editing
+        setEditingText({
+          id: crypto.randomUUID(),
+          position: canvasPoint
+        });
+        setTextInput("");
+        setIsDrawing(false); // Don't set drawing mode for text
       }
     }
   }, [currentTool, screenToCanvas, shapes, paths, isPointInObject, selectedObjects, getBounds, getResizeHandle]);
@@ -702,6 +1048,22 @@ export function CanvasBoard({ boardId }: CanvasBoardProps) {
         if (obj) {
           const newShape = resizeObject(obj, resizeHandle, canvasPoint, resizeStart.bounds);
           setShapes(prev => prev.map(s => s.id === selectedId ? newShape : s));
+        }
+      } else if (isRotating && rotationStart && selectedObjects.length === 1) {
+        // Handle rotation
+        const selectedId = selectedObjects[0];
+        // Find object in both shapes and paths
+        const shapeObj = shapes.find(s => s.id === selectedId);
+        const pathObj = paths.find(p => p.id === selectedId);
+        
+        if (shapeObj) {
+          const initialAngle = Math.atan2(rotationStart.point.y - rotationStart.center.y, rotationStart.point.x - rotationStart.center.x);
+          const rotatedShape = rotateObject(shapeObj, rotationStart.center, canvasPoint, initialAngle);
+          setShapes(prev => prev.map(s => s.id === selectedId ? rotatedShape as Shape : s));
+        } else if (pathObj) {
+          const initialAngle = Math.atan2(rotationStart.point.y - rotationStart.center.y, rotationStart.point.x - rotationStart.center.x);
+          const rotatedPath = rotateObject(pathObj, rotationStart.center, canvasPoint, initialAngle);
+          setPaths(prev => prev.map(p => p.id === selectedId ? rotatedPath as DrawingPath : p));
         }
       } else if (isDragging && dragStart && selectedObjects.length > 0) {
         // Calculate drag offset
@@ -758,6 +1120,12 @@ export function CanvasBoard({ boardId }: CanvasBoardProps) {
             selectedObjects.includes(shape.id) 
               ? moveObject(shape, dragOffset) as Shape
               : shape
+          ));
+          
+          setTexts(prev => prev.map(text => 
+            selectedObjects.includes(text.id) 
+              ? moveObject(text, dragOffset) as TextElement
+              : text
           ));
         },
         undo: () => {
@@ -818,12 +1186,14 @@ export function CanvasBoard({ boardId }: CanvasBoardProps) {
     setIsDrawing(false);
     setIsDragging(false);
     setIsResizing(false);
+    setIsRotating(false);
     setCurrentPath([]);
     setCurrentShape(null);
     setDragStart(null);
     setDragOffset({ x: 0, y: 0 });
     setResizeHandle(null);
     setResizeStart(null);
+    setRotationStart(null);
   }, [isDrawing, isDragging, currentTool, currentPath, currentShape, strokeColor, strokeWidth, fillColor, selectedObjects, dragOffset, moveObject, createStateSnapshot, executeCommand, restoreState]);
 
   const handleWheel = useCallback((e: React.WheelEvent) => {
@@ -858,6 +1228,7 @@ export function CanvasBoard({ boardId }: CanvasBoardProps) {
           // Delete selected objects
           setPaths(prev => prev.filter(path => !selectedObjects.includes(path.id)));
           setShapes(prev => prev.filter(shape => !selectedObjects.includes(shape.id)));
+          setTexts(prev => prev.filter(text => !selectedObjects.includes(text.id)));
           setSelectedObjects([]);
         }
       } else if (e.key === 'Escape') {
@@ -888,12 +1259,20 @@ export function CanvasBoard({ boardId }: CanvasBoardProps) {
         // Redo
         e.preventDefault();
         redo();
+      } else if ((e.ctrlKey || e.metaKey) && e.key === ']') {
+        // Bring to front
+        e.preventDefault();
+        bringToFront();
+      } else if ((e.ctrlKey || e.metaKey) && e.key === '[') {
+        // Send to back
+        e.preventDefault();
+        sendToBack();
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedObjects, copySelectedObjects, pasteObjects, duplicateSelectedObjects, paths, shapes, undo, redo]);
+  }, [selectedObjects, copySelectedObjects, pasteObjects, duplicateSelectedObjects, paths, shapes, undo, redo, bringToFront, sendToBack]);
 
   return (
     <div className="h-screen w-full bg-gray-50 relative overflow-hidden">
@@ -1004,6 +1383,41 @@ export function CanvasBoard({ boardId }: CanvasBoardProps) {
           cursor: currentTool === "select" ? cursorStyle : "crosshair"
         }}
       />
+      
+      {/* Text Input Overlay */}
+      {editingText && (
+        <div 
+          className="absolute bg-transparent pointer-events-none"
+          style={{
+            left: (editingText.position.x * viewport.scale + viewport.offsetX) + 'px',
+            top: (editingText.position.y * viewport.scale + viewport.offsetY) + 'px',
+            transform: 'translate(-50%, -50%)'
+          }}
+        >
+          <input
+            type="text"
+            value={textInput}
+            onChange={(e) => setTextInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                completeTextInput();
+              } else if (e.key === 'Escape') {
+                cancelTextInput();
+              }
+            }}
+            onBlur={completeTextInput}
+            autoFocus
+            className="pointer-events-auto bg-transparent border-none outline-none text-black"
+            style={{
+              fontSize: fontSize + 'px',
+              fontFamily: 'Arial, sans-serif',
+              color: strokeColor,
+              minWidth: '100px'
+            }}
+            placeholder="Type text..."
+          />
+        </div>
+      )}
 
       {/* Board Info */}
       <div className="absolute bottom-4 left-4 bg-white/90 p-3 rounded-lg shadow text-sm">
@@ -1015,7 +1429,8 @@ export function CanvasBoard({ boardId }: CanvasBoardProps) {
           <li>• Resize: Drag corner/edge handles when selected</li>
           <li>• Keyboard: Ctrl+C/V (copy/paste), Ctrl+D (duplicate), Ctrl+A (select all)</li>
           <li>• Delete/Backspace to remove selected, Esc to clear selection</li>
-          <li>• Objects: {paths.length + shapes.length} ({selectedObjects.length} selected)</li>
+          <li>• Layering: Ctrl+] (bring to front), Ctrl+[ (send to back)</li>
+          <li>• Objects: {paths.length + shapes.length + texts.length} ({selectedObjects.length} selected)</li>
           <li>• Clipboard: {clipboard.length} objects | Zoom: {Math.round(viewport.scale * 100)}%</li>
         </ul>
       </div>
