@@ -87,6 +87,14 @@ export function CanvasBoard({ boardId }: CanvasBoardProps) {
     setDebugInfo(`选中更新: ${selectedObjects.join(', ')} (${new Date().toLocaleTimeString()})`);
   }, [selectedObjects]);
   
+  // Debug text editing state changes
+  useEffect(() => {
+    console.log('📝 editingText状态变化:', editingText);
+    if (editingText) {
+      setDebugInfo(`文本编辑中: ID=${editingText.id} 位置(${editingText.position.x.toFixed(0)},${editingText.position.y.toFixed(0)})`);
+    }
+  }, [editingText]);
+  
   const [isDragging, setIsDragging] = useState(false);
   const [cursorStyle, setCursorStyle] = useState<string>("default");
   
@@ -322,8 +330,20 @@ export function CanvasBoard({ boardId }: CanvasBoardProps) {
       });
     } else if (currentTool === "text") {
       const textId = `text-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-      setEditingText({ id: textId, position: canvasPoint });
-      setTextInput("");
+      console.log('🔤 文本工具点击:', { textId, position: canvasPoint, viewport });
+      
+      // 清除任何现有的编辑状态
+      if (editingText) {
+        setEditingText(null);
+        setTextInput("");
+      }
+      
+      // 设置新的编辑状态
+      setTimeout(() => {
+        setEditingText({ id: textId, position: canvasPoint });
+        setTextInput("");
+        setDebugInfo(`文本编辑开始: ${textId} 位置(${canvasPoint.x.toFixed(0)},${canvasPoint.y.toFixed(0)})`);
+      }, 10);
     } else if (currentTool === "eraser") {
       // Eraser tool - delete objects at point and enable dragging for continuous erasing
       setIsDrawing(true);
@@ -336,7 +356,7 @@ export function CanvasBoard({ boardId }: CanvasBoardProps) {
         setDebugInfo(`已删除对象: ${objectAtPoint}`);
       }
     }
-  }, [currentTool, viewport, strokeColor, strokeWidth, fillColor, paths, shapes, texts, selectionSystem, selectedObjects]);
+  }, [currentTool, viewport, strokeColor, strokeWidth, fillColor, paths, shapes, texts, selectionSystem, selectedObjects, editingText]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     if (!canvasRef.current) return;
@@ -651,6 +671,7 @@ export function CanvasBoard({ boardId }: CanvasBoardProps) {
 
   // Complete text input
   const completeTextInput = useCallback(() => {
+    console.log('✅ 完成文本输入:', { editingText, textInput: textInput.trim() });
     if (editingText && textInput.trim()) {
       const newText: TextElement = {
         id: editingText.id,
@@ -666,8 +687,13 @@ export function CanvasBoard({ boardId }: CanvasBoardProps) {
         zIndex: Math.max(0, ...texts.map(t => t.zIndex || 0)) + 1
       };
 
+      console.log('📝 创建新文本对象:', newText);
       const command = createAddTextCommand(newText, texts, setTexts);
       commandSystem.executeCommand(command);
+      setDebugInfo(`文本已添加: "${newText.content}" 位置(${newText.position.x.toFixed(0)},${newText.position.y.toFixed(0)})`);
+    } else {
+      console.log('❌ 文本输入取消或为空');
+      setDebugInfo('文本输入取消');
     }
     
     setEditingText(null);
@@ -1014,6 +1040,8 @@ export function CanvasBoard({ boardId }: CanvasBoardProps) {
               <div>选中数量: {selectedObjects.length}</div>
               <div>选中ID: {selectedObjects.join(', ') || '无'}</div>
               <div>总对象: 路径{paths.length} + 形状{shapes.length} + 文本{texts.length}</div>
+              <div>编辑文本: {editingText ? `${editingText.id} (${editingText.position.x.toFixed(0)},${editingText.position.y.toFixed(0)})` : '无'}</div>
+              <div>文本输入: "{textInput}"</div>
               <div className="text-green-600">{debugInfo}</div>
             </div>
             <Button
@@ -1066,12 +1094,14 @@ export function CanvasBoard({ boardId }: CanvasBoardProps) {
         {/* Text Input Overlay */}
         {editingText && (
           <div 
-            className="absolute bg-white border border-blue-500 rounded p-2 z-10"
+            className="absolute bg-white border-2 border-blue-500 rounded p-2 z-50 shadow-lg"
             style={{
-              left: editingText.position.x * viewport.scale + viewport.offsetX,
-              top: editingText.position.y * viewport.scale + viewport.offsetY,
-              minWidth: '200px'
+              left: Math.max(10, Math.min(window.innerWidth - 220, editingText.position.x * viewport.scale + viewport.offsetX)),
+              top: Math.max(10, Math.min(window.innerHeight - 60, editingText.position.y * viewport.scale + viewport.offsetY)),
+              minWidth: '200px',
+              pointerEvents: 'auto' // 确保可以交互
             }}
+            onMouseDown={(e) => e.stopPropagation()} // 防止点击输入框时触发画布事件
           >
             <input
               type="text"
@@ -1088,9 +1118,15 @@ export function CanvasBoard({ boardId }: CanvasBoardProps) {
                   setTextInput("");
                 }
               }}
-              className="w-full px-2 py-1 border-none outline-none bg-transparent"
+              className="w-full px-2 py-1 border-none outline-none bg-transparent text-sm"
               placeholder="输入文本..."
               autoFocus
+              ref={(input) => {
+                if (input) {
+                  // 确保输入框获得焦点
+                  setTimeout(() => input.focus(), 10);
+                }
+              }}
             />
           </div>
         )}
